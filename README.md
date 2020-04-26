@@ -1,5 +1,5 @@
 # kubexit
-Command wrapper for coordinated Kubernetes pod shutdown.
+Command supervisor for coordinated process termination.
 
 ## Tombstones
 
