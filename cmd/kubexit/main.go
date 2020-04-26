@@ -38,6 +38,7 @@ func main() {
 		graveyard = "/graveyard"
 	} else {
 		graveyard = strings.TrimRight(graveyard, "/")
+		graveyard = filepath.Clean(graveyard)
 	}
 	log.Printf("Graveyard: %s\n", graveyard)
 
@@ -91,16 +92,12 @@ func main() {
 	// stop all watchers on supervisor exit
 	defer stopWatchers()
 
-	// TODO: Use a single fsnotify watcher for all files?
-	for _, depName := range deathDeps {
-		depTombstonePath := filepath.Join(graveyard, depName)
-		log.Printf("Watching tombstone: %s\n", depTombstonePath)
-		err = tombstone.Watch(ctx, depTombstonePath,
-			newEventHandler(depTombstonePath, child, gracePeriod, stopWatchers),
-		)
-		if err != nil {
-			fatalf(child, "Failed to watch tombstone: %v\n", err)
-		}
+	log.Println("Watching graveyard...")
+	err = tombstone.Watch(ctx, graveyard,
+		newEventHandler(deathDeps, child, gracePeriod, stopWatchers),
+	)
+	if err != nil {
+		fatalf(child, "Failed to watch graveyard: %v\n", err)
 	}
 
 	code := wait(child)
@@ -140,9 +137,10 @@ func wait(child *supervisor.Supervisor) int {
 
 // fatalf is for terminal errors while the child process is running.
 func fatalf(child *supervisor.Supervisor, msg string, args ...interface{}) {
+	log.Printf(msg, args...)
 	err := child.ShutdownNow()
 	if err != nil {
-		log.Printf(msg, args...)
+		log.Printf("Failed to shutdown child process: %v", err)
 		os.Exit(1)
 	}
 
@@ -153,28 +151,45 @@ func fatalf(child *supervisor.Supervisor, msg string, args ...interface{}) {
 
 // newEventHandler returns an EventHandler that shuts down the child process,
 // if the specified tombstone has a Died timestamp.
-func newEventHandler(depTombstonePath string, child *supervisor.Supervisor, gracePeriod time.Duration, stopWatchers context.CancelFunc) tombstone.EventHandler {
+func newEventHandler(deathDeps []string, child *supervisor.Supervisor, gracePeriod time.Duration, stopWatchers context.CancelFunc) tombstone.EventHandler {
+	deathDepSet := map[string]struct{}{}
+	for _, depName := range deathDeps {
+		deathDepSet[depName] = struct{}{}
+	}
+
 	return func(event fsnotify.Event) {
-		if event.Op&fsnotify.Create == fsnotify.Create || event.Op&fsnotify.Write == fsnotify.Write {
-			log.Printf("File modified: %s\n", event.Name)
-			depTombstone, err := tombstone.Read(depTombstonePath)
-			if err != nil {
-				log.Printf("Failed to read tombstone: %v\n", err)
-				return
-			}
-			if depTombstone.Died == nil {
-				// still alive
-				return
-			}
-			// stop all watchers
-			stopWatchers()
-			// trigger graceful shutdown
-			err = child.ShutdownWithTimeout(gracePeriod)
-			// ShutdownWithTimeout doesn't block until timeout
-			if err != nil {
-				log.Printf("Failed to shutdown: %v\n", err)
-				return
-			}
+		if event.Op&fsnotify.Create != fsnotify.Create && event.Op&fsnotify.Write != fsnotify.Write {
+			// ignore other events
+			return
+		}
+		basename := filepath.Base(event.Name)
+		log.Printf("File modified: %s\n", basename)
+		if _, ok := deathDepSet[basename]; !ok {
+			// ignore other tombstones
+			return
+		}
+
+		log.Printf("Reading tombstone: %s\n", event.Name)
+		ts, err := tombstone.Read(event.Name)
+		if err != nil {
+			log.Printf("Failed to read tombstone: %v\n", err)
+			return
+		}
+
+		if ts.Died == nil {
+			// still alive
+			return
+		}
+		log.Printf("Dead Death Dep: %s\n", basename)
+
+		// stop all watchers
+		stopWatchers()
+		// trigger graceful shutdown
+		err = child.ShutdownWithTimeout(gracePeriod)
+		// ShutdownWithTimeout doesn't block until timeout
+		if err != nil {
+			log.Printf("Failed to shutdown: %v\n", err)
+			return
 		}
 	}
 }

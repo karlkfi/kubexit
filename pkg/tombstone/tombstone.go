@@ -56,13 +56,13 @@ func Read(path string) (*Tombstone, error) {
 		return nil, fmt.Errorf("failed to read tombstone file: %v", err)
 	}
 
-	var t *Tombstone
-	err = yaml.Unmarshal(bytes, t)
+	t := Tombstone{}
+	err = yaml.Unmarshal(bytes, &t)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal tombstone yaml: %v", err)
 	}
 
-	return t, nil
+	return &t, nil
 }
 
 type EventHandler func(fsnotify.Event)
