@@ -53,3 +53,77 @@ Build from source:
 ```
 go get github.com/karlkfi/kubexit/cmd/kubexit
 ```
+
+## Kubernetes
+
+One reason to use `kubexit` is that Kuberntes Jobs continue to run as long as any of the containers are running.
+
+If you've ever tried to use [cloudsql-proxy](https://github.com/GoogleCloudPlatform/cloudsql-proxy) as a sidecar in a Job, you may be familiar with this problem.
+
+With the following Job manifest, the `main` container will sleep for a minute and then exit, leaving a tombstone in the graveyard.
+
+The `kubexit` in the `cloudsql-proxy` should then see the `/graveyard/main` tombstone update, see the death timestamp, and trigger graceful shutdown of `cloudsql-proxy` with SIGTERM.
+
+```
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: example
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: example
+    spec:
+      restartPolicy: Never
+      volumes:
+      - name: graveyard
+        emptyDir:
+          medium: Memory
+      - name: cloudsql
+        emptyDir: {}
+      - name: service-account-token
+        secret:
+          secretName: service-account-token
+      containers:
+      - image: alpine
+        name: main
+        command: ['kubexit', 'sleep', '60']
+        env:
+        - name: KUBEXIT_NAME
+          value: main
+        - name: KUBEXIT_GRAVEYARD
+          value: /graveyard
+        volumeMounts:
+        - mountPath: /graveyard
+          name: graveyard
+      - image: cloudsql-proxy-kubexit
+        name: cloudsql-proxy
+        command: ['kubexit', 'cloud_sql_proxy', '-term_timeout=10s']
+        lifecycle:
+          preStop:
+            exec:
+              command: ['sleep', '10']
+        env:
+        - name: INSTANCES
+          value: project:region:instance=tcp:0.0.0.0:5432
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /credentials/credentials.json
+        - name: KUBEXIT_NAME
+          value: cloudsql-proxy
+        - name: KUBEXIT_GRAVEYARD
+          value: /graveyard
+        - name: KUBEXIT_DEATH_DEPS
+          value: main
+        ports:
+        - name: proxy
+          containerPort: 5432
+        volumeMounts:
+        - mountPath: /cloudsql
+          name: cloudsql
+        - mountPath: /credentials
+          name: service-account-token
+        - mountPath: /graveyard
+          name: graveyard
+```
