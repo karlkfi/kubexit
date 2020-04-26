@@ -14,11 +14,11 @@ With kubexit, you can define **death dependencies** between processes that are w
 
 ```
 KUBEXIT_NAME=app1 \
-KUBEXIT_GRAVEYARD=/lifecycle/ \
+KUBEXIT_GRAVEYARD=/graveyard \
 kubexit app1 &
 
 KUBEXIT_NAME=app2 \
-KUBEXIT_GRAVEYARD=/lifecycle/ \
+KUBEXIT_GRAVEYARD=/graveyard \
 KUBEXIT_DEATH_DEPS=app1
 kubexit app2 &
 ```
@@ -33,11 +33,11 @@ With kubexit, you can define **birth dependencies** between processes that are w
 
 ```
 KUBEXIT_NAME=app1 \
-KUBEXIT_GRAVEYARD=/lifecycle/ \
+KUBEXIT_GRAVEYARD=/graveyard \
 kubexit app1 &
 
 KUBEXIT_NAME=app2 \
-KUBEXIT_GRAVEYARD=/lifecycle/ \
+KUBEXIT_GRAVEYARD=/graveyard \
 KUBEXIT_BIRTH_DEPS=app1
 kubexit app2 &
 ```
