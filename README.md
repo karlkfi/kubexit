@@ -3,14 +3,14 @@ Command supervisor for coordinated process termination.
 
 ## Tombstones
 
-kubexit carves a tombstone at `${KUBEXIT_PATH}/${KUBEXIT_NAME}` to mark the birth and death of the process it supervises:
+kubexit carves a tombstone at `${KUBEXIT_GRAVEYARD}/${KUBEXIT_NAME}` to mark the birth and death of the process it supervises:
 
 1. When a wrapped app starts, kubexit will write a tombstone with a `Born` timestamp.
 1. When a wrapped app exits, kubexit will update the tombstone with a `Died` timestamp and the `ExitCode`.
 
 ## Use Case: Romeo and Juliet
 
-With kubexit, you can define **death dependencies** between processes that are wrapped with kubexit and configured with the same `KUBEXIT_PATH`.
+With kubexit, you can define **death dependencies** between processes that are wrapped with kubexit and configured with the same `KUBEXIT_GRAVEYARD`.
 
 ```
 KUBEXIT_NAME=app1 \
