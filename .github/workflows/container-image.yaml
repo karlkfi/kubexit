@@ -1,0 +1,21 @@
+---
+name: Container Image
+
+on:
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  # https://help.github.com/en/actions/language-and-framework-guides/publishing-docker-images
+  container-image:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build & Push to Docker Hub
+      # https://github.com/docker/build-push-action
+      uses: docker/build-push-action@v1
+      with:
+        repository: karlkfi/kubexit
+        # Docker Automated Builds handle publishing
+        push: false
