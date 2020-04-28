@@ -1,0 +1,39 @@
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.11/main/x86_64/APKINDEX.tar.gz
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.11/community/x86_64/APKINDEX.tar.gz
+(1/5) Installing nghttp2-libs (1.40.0-r0)
+(2/5) Installing libcurl (7.67.0-r0)
+(3/5) Installing expat (2.2.9-r1)
+(4/5) Installing pcre2 (10.34-r1)
+(5/5) Installing git (2.24.3-r0)
+Executing busybox-1.31.1-r9.trigger
+OK: 22 MiB in 20 packages
+Cloning into '.'...
+Branch 'karl-birth-deps' set up to track remote branch 'karl-birth-deps' from 'origin'.
+Switched to a new branch 'karl-birth-deps'
+go: downloading github.com/fsnotify/fsnotify v1.4.9
+go: downloading sigs.k8s.io/yaml v1.2.0
+go: downloading k8s.io/api v0.18.2
+go: downloading k8s.io/apimachinery v0.18.2
+go: downloading k8s.io/client-go v0.18.2
+go: downloading gopkg.in/yaml.v2 v2.2.8
+go: downloading github.com/gogo/protobuf v1.3.1
+go: downloading golang.org/x/sys v0.0.0-20191022100944-742c48ecaeb7
+go: downloading gopkg.in/inf.v0 v0.9.1
+go: downloading k8s.io/klog v1.0.0
+go: downloading github.com/google/gofuzz v1.1.0
+go: downloading sigs.k8s.io/structured-merge-diff/v3 v3.0.0
+go: downloading golang.org/x/net v0.0.0-20191004110552-13f9640d40b9
+go: downloading github.com/json-iterator/go v1.1.8
+go: downloading k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
+go: downloading github.com/modern-go/reflect2 v1.0.1
+go: downloading github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+go: downloading golang.org/x/text v0.3.2
+go: downloading github.com/google/go-cmp v0.3.0
+go: downloading golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
+go: downloading github.com/golang/protobuf v1.3.2
+go: downloading github.com/hashicorp/golang-lru v0.5.1
+go: downloading github.com/googleapis/gnostic v0.1.0
+go: downloading github.com/davecgh/go-spew v1.1.1
+go: downloading golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+go: downloading golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
+kubexit -> /kubexit/kubexit

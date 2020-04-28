@@ -1,0 +1,102 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: example-job
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: example-job
+    spec:
+      restartPolicy: Never
+      volumes:
+      - name: graveyard
+        emptyDir:
+          medium: Memory
+      - name: kubexit
+        emptyDir: {}
+
+      initContainers:
+      - name: kubexit
+        image: golang:1.14.1-alpine3.11
+        command: ['sh', '-c']
+        args:
+        - |
+          set -o errexit -o nounset -o pipefail
+          apk --no-cache add git
+          mkdir /build
+          cd /build
+          git clone https://github.com/karlkfi/kubexit .
+          git checkout "karl-birth-deps"
+          CGO_ENABLED=0 GOOS=linux go build -o /kubexit/kubexit ./cmd/kubexit
+          echo "kubexit -> /kubexit/kubexit"
+        volumeMounts:
+        - mountPath: /kubexit
+          name: kubexit
+
+      containers:
+      - name: client
+        image: alpine:3.11
+        command: ['sh', '-c']
+        args:
+        - |
+          set -o errexit -o nounset -o pipefail
+          apk --no-cache add ca-certificates tzdata curl bash
+          /kubexit/kubexit curl -v --fail http://localhost:80/
+        env:
+        - name: KUBEXIT_NAME
+          value: client
+        - name: KUBEXIT_GRAVEYARD
+          value: /graveyard
+        - name: KUBEXIT_BIRTH_DEPS
+          value: server
+        - name: KUBEXIT_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: KUBEXIT_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        volumeMounts:
+        - mountPath: /graveyard
+          name: graveyard
+        - mountPath: /kubexit
+          name: kubexit
+      - name: server
+        image: nginx:1.17-alpine
+        command: ['sh', '-c']
+        args:
+        - |
+          set -o errexit -o nounset -o pipefail
+          sleep 10
+          /kubexit/kubexit nginx -g 'daemon off;'
+        env:
+        - name: KUBEXIT_NAME
+          value: server
+        - name: KUBEXIT_GRAVEYARD
+          value: /graveyard
+        - name: KUBEXIT_DEATH_DEPS
+          value: client
+        volumeMounts:
+        - mountPath: /graveyard
+          name: graveyard
+        - mountPath: /kubexit
+          name: kubexit
+        livenessProbe:
+          tcpSocket:
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6
+        readinessProbe:
+          tcpSocket:
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6

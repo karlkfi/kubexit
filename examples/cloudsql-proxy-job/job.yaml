@@ -1,0 +1,94 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: example-job
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: example-job
+    spec:
+      restartPolicy: Never
+      volumes:
+      - name: graveyard
+        emptyDir:
+          medium: Memory
+      - name: cloudsql
+        emptyDir: {}
+      - name: service-account-token
+        secret:
+          secretName: service-account-token
+      containers:
+      - name: psql
+        image: postgresql-client
+        command: ['kubexit', 'psql']
+        args: ['-c', 'SELECT * FROM foo;']
+        env:
+        - name: KUBEXIT_NAME
+          value: psql
+        - name: KUBEXIT_GRAVEYARD
+          value: /graveyard
+        - name: KUBEXIT_BIRTH_DEPS
+          value: cloudsql-proxy
+        - name: KUBEXIT_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: KUBEXIT_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: PGDATABASE
+          # ex: postgres://user:pass@localhost:5432/db?sslmode=disable
+          valueFrom:
+            secretKeyRef:
+              name: postgres-database
+              key: url
+        volumeMounts:
+        - mountPath: /graveyard
+          name: graveyard
+      - name: cloudsql-proxy
+        image: cloudsql-proxy-kubexit
+        command: ['kubexit', 'cloud_sql_proxy', '-term_timeout=10s']
+        lifecycle:
+          preStop:
+            exec:
+              command: ['sleep', '10']
+        env:
+        - name: INSTANCES
+          value: project:region:instance=tcp:localhost:5432
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /credentials/credentials.json
+        - name: KUBEXIT_NAME
+          value: cloudsql-proxy
+        - name: KUBEXIT_GRAVEYARD
+          value: /graveyard
+        - name: KUBEXIT_DEATH_DEPS
+          value: psql
+        ports:
+        - name: proxy
+          containerPort: 5432
+        volumeMounts:
+        - mountPath: /cloudsql
+          name: cloudsql
+        - mountPath: /credentials
+          name: service-account-token
+        - mountPath: /graveyard
+          name: graveyard
+        livenessProbe:
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6
+        readinessProbe:
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6

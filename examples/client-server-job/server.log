@@ -1,0 +1,24 @@
+Name: server
+Graveyard: /graveyard
+Tombstone: /graveyard/server
+Birth Deps: N/A
+Death Deps: client
+Grace Period: 30s
+Pod Name: N/A
+Namespace: N/A
+Exec: /usr/sbin/nginx -g "daemon off;"
+Creating tombstone: /graveyard/server
+Watching graveyard...
+Tombstone modified: client
+Reading tombstone: client
+Tombstone modified: client
+Reading tombstone: client
+127.0.0.1 - - [28/Apr/2020:09:42:39 +0000] "GET / HTTP/1.1" 200 612 "-" "curl/7.67.0" "-"
+Tombstone modified: client
+Reading tombstone: client
+New death: client
+Tombstone(client): &{Born:2020-04-28 09:42:39.1738453 +0000 UTC Died:2020-04-28 09:42:39.1960628 +0000 UTC ExitCode:0xc0000b0200 Graveyard:/graveyard Name:client fileLock:{state:0 sema:0}}
+Terminating child process...
+Tombstone Watch(/graveyard): done
+Exit(0)
+Updating tombstone: /graveyard/server

@@ -1,0 +1,12 @@
+# SCM Cache
+.git
+
+# ignore markdown except readme
+*.md
+!README*.md
+
+# Build binaries
+/bin/
+
+# Test graveyard
+.graveyard
