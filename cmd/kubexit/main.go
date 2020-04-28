@@ -83,18 +83,26 @@ func main() {
 	log.Printf("Grace Period: %s\n", gracePeriod)
 
 	podName := os.Getenv("KUBEXIT_POD_NAME")
-	if podName == "" && len(birthDeps) > 0 {
-		log.Println("Error: missing env var: KUBEXIT_POD_NAME")
-		os.Exit(2)
+	if podName == "" {
+		if len(birthDeps) > 0 {
+			log.Println("Error: missing env var: KUBEXIT_POD_NAME")
+			os.Exit(2)
+		}
+		log.Println("Pod Name: N/A")
+	} else {
+		log.Printf("Pod Name: %s\n", podName)
 	}
-	log.Printf("Pod Name: %s\n", podName)
 
 	namespace := os.Getenv("KUBEXIT_NAMESPACE")
-	if namespace == "" && len(birthDeps) > 0 {
-		log.Println("Error: missing env var: KUBEXIT_NAMESPACE")
-		os.Exit(2)
+	if namespace == "" {
+		if len(birthDeps) > 0 {
+			log.Println("Error: missing env var: KUBEXIT_NAMESPACE")
+			os.Exit(2)
+		}
+		log.Println("Namespace: N/A")
+	} else {
+		log.Printf("Namespace: %s\n", namespace)
 	}
-	log.Printf("Namespace: %s\n", namespace)
 
 	if len(birthDeps) > 0 {
 		// TODO: max start delay timeout

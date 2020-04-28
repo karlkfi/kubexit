@@ -116,8 +116,7 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 				if !ok {
 					return
 				}
-				// TODO: Do these need to be asyncronous?
-				go eventHandler(event)
+				eventHandler(event)
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return

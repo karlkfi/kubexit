@@ -156,15 +156,17 @@ func (s *Supervisor) String() string {
 		buffer.WriteRune('"')
 	}
 
-	for _, arg := range s.cmd.Args {
-		buffer.WriteRune(' ')
-		quote = strings.ContainsRune(arg, ' ')
-		if quote {
-			buffer.WriteRune('"')
-		}
-		buffer.WriteString(arg)
-		if quote {
-			buffer.WriteRune('"')
+	if len(s.cmd.Args) > 1 {
+		for _, arg := range s.cmd.Args[1:] {
+			buffer.WriteRune(' ')
+			quote = strings.ContainsRune(arg, ' ')
+			if quote {
+				buffer.WriteRune('"')
+			}
+			buffer.WriteString(arg)
+			if quote {
+				buffer.WriteRune('"')
+			}
 		}
 	}
 
