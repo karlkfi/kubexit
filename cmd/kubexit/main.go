@@ -97,19 +97,13 @@ func main() {
 	log.Printf("Namespace: %s\n", namespace)
 
 	if len(birthDeps) > 0 {
-		kubeClient, err := kubernetes.NewClient()
-		if err != nil {
-			log.Printf("Error: %v\n", err)
-			os.Exit(1)
-		}
-
 		// TODO: max start delay timeout
 		ctx, stopPodWatcher := context.WithCancel(context.Background())
 		// stop pod watcher on exit, if not sooner
 		defer stopPodWatcher()
 
 		log.Println("Watching pod updates...")
-		err = kubeClient.WatchPod(ctx, namespace, podName,
+		err = kubernetes.WatchPod(ctx, namespace, podName,
 			newPodEventHandler(birthDeps, stopPodWatcher),
 		)
 		if err != nil {

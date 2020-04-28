@@ -18,27 +18,18 @@ import (
 
 type EventHandler func(watch.Event)
 
-type Client struct {
-	clientset *kubernetes.Clientset
-}
-
-func NewClient() (*Client, error) {
+// Watch a pod and call the eventHandler (asyncronously) when an
+// event happens. When the supplied context is canceled, watching will stop.
+func WatchPod(ctx context.Context, namespace, podName string, eventHandler EventHandler) error {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to configure kubernetes client: %v", err)
+		return fmt.Errorf("failed to configure kubernetes client: %v", err)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes client: %v", err)
+		return fmt.Errorf("failed to create kubernetes client: %v", err)
 	}
-	return &Client{
-		clientset: clientset,
-	}, nil
-}
 
-// Watch a pod and call the eventHandler (asyncronously) when an
-// event happens. When the supplied context is canceled, watching will stop.
-func (c *Client) WatchPod(ctx context.Context, namespace, podName string, eventHandler EventHandler) error {
 	// Watch doesn't take name matches, only selectors. So select on name.
 	fieldSelector := fields.OneTermEqualSelector("metadata.name", podName).String()
 
@@ -50,11 +41,11 @@ func (c *Client) WatchPod(ctx context.Context, namespace, podName string, eventH
 	lw := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (object runtime.Object, e error) {
 			options.FieldSelector = fieldSelector
-			return c.clientset.CoreV1().Pods(namespace).List(ctx, options)
+			return clientset.CoreV1().Pods(namespace).List(ctx, options)
 		},
 		WatchFunc: func(options metav1.ListOptions) (i watch.Interface, e error) {
 			options.FieldSelector = fieldSelector
-			return c.clientset.CoreV1().Pods(namespace).Watch(ctx, options)
+			return clientset.CoreV1().Pods(namespace).Watch(ctx, options)
 		},
 	}
 
@@ -80,10 +71,10 @@ func (c *Client) WatchPod(ctx context.Context, namespace, podName string, eventH
 			}
 			return false, nil
 		})
-    if err != nil {
-      // TODO: should we do something about this??
-      log.Printf("Pod Watch(%s): error: %v\n", podName, err)
-  	}
+		if err != nil {
+			// TODO: should we do something about this??
+			log.Printf("Pod Watch(%s): error: %v\n", podName, err)
+		}
 		log.Printf("Pod Watch(%s): done\n", podName)
 	}()
 
