@@ -27,8 +27,6 @@ If `app1` exits before `app2` does, kubexit will detect the tombstone update and
 
 ## Use Case: Hercules and Iphicles
 
-**TODO**: Birth Dependencies and Readiness Probes are not yet implemented.
-
 With kubexit, you can define **birth dependencies** between processes that are wrapped with kubexit and configured with the same graveyard.
 
 ```
@@ -44,7 +42,7 @@ KUBEXIT_NAMESPACE=example-namespace
 kubexit app2 &
 ```
 
-If `kubexit app2` starts before `app1` is ready, kubexit will block the starting of `app2` until `app1` is ready.
+If `kubexit app2` starts before `app1` is ready (according to its Kubernetes readiness probe), kubexit will block the starting of `app2` until `app1` is ready.
 
 ## Config
 
