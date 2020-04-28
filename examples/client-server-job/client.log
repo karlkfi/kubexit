@@ -19,16 +19,16 @@ Tombstone: /graveyard/client
 Birth Deps: server
 Death Deps: N/A
 Grace Period: 30s
-Pod Name: example-job-tsq2p
+Pod Name: example-job-kflt8
 Namespace: default
 Watching pod updates...
 Event Type: ADDED
 Event Type: MODIFIED
+Pod Watch(example-job-kflt8): done
 All birth deps ready: server
 Exec: /usr/bin/curl -v --fail http://localhost:80/
-Pod Watch(example-job-tsq2p): done
-Creating tombstone: /graveyard/client
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+  % Total    % ReceCreating tombstone: /graveyard/client
+ived % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
   0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 127.0.0.1:80...
 * TCP_NODELAY set
@@ -36,46 +36,46 @@ Creating tombstone: /graveyard/client
 > GET / HTTP/1.1
 > Host: localhost
 > User-Agent: curl/7.67.0
+> Accept: */*
+> 
+* Mark bundle as not supporting multiuse
+< HTTP/1.1 200 OK
+< Server: nginx/1.17.10
+< Date: Tue, 28 Apr 2020 10:41:47 GMT
+< Content-Type: text/html
+< Content-Length: 612
+< Last-Modified: Tue, 14 Apr 2020 14:46:22 GMT
+< Connection: keep-alive
+< ETag: "5e95ccbe-264"
+< Accept-Ranges: bytes
+< 
+{ [612 bytes data]
+100   612  100   612    0     0  14571      0 --:--:-- --:--:-- --:--:-- 15300
 <!DOCTYPE html>
+* Connection #0 to host localhost left intact
 <html>
 <head>
 <title>Welcome to nginx!</title>
 <style>
     body {
         width: 35em;
+Exit(0)
+Updating tombstone: /graveyard/client
         margin: 0 auto;
-> Accept: */*
         font-family: Tahoma, Verdana, Arial, sans-serif;
-> 
     }
-* Mark bundle as not supporting multiuse
 </style>
-< HTTP/1.1 200 OK
 </head>
-< Server: nginx/1.17.10
-< Date: Tue, 28 Apr 2020 09:42:39 GMT
 <body>
-< Content-Type: text/html
 <h1>Welcome to nginx!</h1>
-< Content-Length: 612
 <p>If you see this page, the nginx web server is successfully installed and
 working. Further configuration is required.</p>
-< Last-Modified: Tue, 14 Apr 2020 14:46:22 GMT
-< Connection: keep-alive
 
-< ETag: "5e95ccbe-264"
 <p>For online documentation and support please refer to
-< Accept-Ranges: bytes
 <a href="http://nginx.org/">nginx.org</a>.<br/>
-< 
 Commercial support is available at
-{ [612 bytes data]
 <a href="http://nginx.com/">nginx.com</a>.</p>
-100   612  100   612    0     0   199k      0 --:--:-- --:--:-- --:--:--  199k
 
-* Connection #0 to host localhost left intact
 <p><em>Thank you for using nginx.</em></p>
 </body>
 </html>
-Exit(0)
-Updating tombstone: /graveyard/client

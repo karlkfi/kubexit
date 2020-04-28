@@ -19,18 +19,8 @@ spec:
 
       initContainers:
       - name: kubexit
-        image: golang:1.14.1-alpine3.11
-        command: ['sh', '-c']
-        args:
-        - |
-          set -o errexit -o nounset -o pipefail
-          apk --no-cache add git
-          mkdir /build
-          cd /build
-          git clone https://github.com/karlkfi/kubexit .
-          git checkout "karl-birth-deps"
-          CGO_ENABLED=0 GOOS=linux go build -o /kubexit/kubexit ./cmd/kubexit
-          echo "kubexit -> /kubexit/kubexit"
+        image: karlkfi/kubexit:latest
+        command: ['cp', '/bin/kubexit', '/kubexit/kubexit']
         volumeMounts:
         - mountPath: /kubexit
           name: kubexit

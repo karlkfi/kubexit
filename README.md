@@ -70,12 +70,37 @@ Birth Dependency:
 
 ## Install
 
-**TODO**: Alpine & Ubuntu Docker images for multi-stage builds.
-
 Build from source:
 
 ```
 go get github.com/karlkfi/kubexit/cmd/kubexit
+```
+
+Copy from pre-built Alpine-based container image in a multi-stage build:
+
+```
+FROM karlkfi/kubexit:latest AS kubexit
+
+FROM alpine:3.11
+RUN apk --no-cache add ca-certificates tzdata
+COPY --from=kubexit /bin/kubexit /bin/
+ENTRYPOINT ["kubexit"]
+```
+
+Copy from init container to ephemeral volume:
+
+```
+volumes:
+- name: kubexit
+  emptyDir: {}
+
+initContainers:
+- name: kubexit
+  image: karlkfi/kubexit:latest
+  command: ['cp', '/bin/kubexit', '/kubexit/kubexit']
+  volumeMounts:
+  - mountPath: /kubexit
+    name: kubexit
 ```
 
 ## Examples
