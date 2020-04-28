@@ -5,6 +5,8 @@ This example has 3 containers:
 - `client` - An alpine container that installs curl, sleeps until the server is ready (birth dependency), curls the server, and then exits.
 - `server` - An nginx container that sleeps (to exemplify slow startup), and then starts serving traffic. When the client exits, the server will exit (death dependency).
 
+See [job.yaml](job.yaml)
+
 ```
 kubectl apply -f examples/client-server-job/job.yaml
 
