@@ -1,6 +1,11 @@
 # kubexit
 Command supervisor for coordinated process termination.
 
+![kubexit Stars](https://img.shields.io/docker/stars/karlkfi/kubexit.svg)
+![kubexit Pulls](https://img.shields.io/docker/pulls/karlkfi/kubexit.svg)
+![kubexit Automated](https://img.shields.io/docker/automated/karlkfi/kubexit.svg)
+![kubexit Build Status](https://img.shields.io/docker/status/karlkfi/kubexit.svg)
+
 ## Tombstones
 
 kubexit carves a tombstone at `${KUBEXIT_GRAVEYARD}/${KUBEXIT_NAME}` to mark the birth and death of the process it supervises:
