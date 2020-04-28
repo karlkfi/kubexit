@@ -279,7 +279,7 @@ func newFSEventHandler(deathDeps []string, child *supervisor.Supervisor, stopGra
 			return
 		}
 		log.Printf("New death: %s\n", name)
-		log.Printf("Tombstone(%s): %+v\n", name, ts)
+		log.Printf("Tombstone(%s): %s\n", name, ts)
 
 		// TODO: handle multiple deathDeps atomically
 

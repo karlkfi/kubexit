@@ -2,6 +2,7 @@ package tombstone
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -54,6 +55,14 @@ func (t *Tombstone) Write() error {
 	}
 	file.Write(pretty)
 	return nil
+}
+
+func (t *Tombstone) String() string {
+	inline, err := json.Marshal(t)
+	if err != nil {
+		return fmt.Sprintf("%+v", t)
+	}
+	return string(inline)
 }
 
 // Read a tombstone from a graveyard.
