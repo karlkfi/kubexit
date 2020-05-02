@@ -17,7 +17,7 @@ import (
 type Supervisor struct {
 	cmd           *exec.Cmd
 	sigCh         chan os.Signal
-	shutdownLock  sync.Mutex
+	startStopLock sync.Mutex
 	shutdownTimer *time.Timer
 }
 
@@ -36,8 +36,12 @@ func New(name string, args ...string) *Supervisor {
 }
 
 func (s *Supervisor) Start() error {
+	s.startStopLock.Lock()
+	defer s.startStopLock.Unlock()
+
+	log.Printf("Starting: %s\n", s)
 	if err := s.cmd.Start(); err != nil {
-		return err
+		return fmt.Errorf("failed to start child process: %v", err)
 	}
 
 	// Propegate all signals to the child process
@@ -76,10 +80,14 @@ func (s *Supervisor) Wait() error {
 			s.shutdownTimer.Stop()
 		}
 	}()
+	log.Println("Waiting for child process to exit...")
 	return s.cmd.Wait()
 }
 
 func (s *Supervisor) Signal(sig os.Signal) error {
+	s.startStopLock.Lock()
+	defer s.startStopLock.Unlock()
+
 	// Process set by Start
 	if s.cmd.Process == nil {
 		return errors.New("cannot signal unstarted child process")
@@ -93,20 +101,32 @@ func (s *Supervisor) Signal(sig os.Signal) error {
 }
 
 func (s *Supervisor) ShutdownNow() error {
+	s.startStopLock.Lock()
+	defer s.startStopLock.Unlock()
+
+	if !s.isRunning() {
+		log.Println("Skipping ShutdownNow: child process not running")
+		return nil
+	}
+
 	log.Println("Killing child process...")
 	// TODO: Use Process.Kill() instead?
 	// Sending Interrupt on Windows is not implemented.
 	err := s.Signal(syscall.SIGKILL)
 	if err != nil {
-		return fmt.Errorf("failed to shutdown child process: %v", err)
+		return fmt.Errorf("failed to kill child process: %v", err)
 	}
 	return nil
 }
 
 func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
-	// one shutdown timer at a time
-	s.shutdownLock.Lock()
-	defer s.shutdownLock.Unlock()
+	s.startStopLock.Lock()
+	defer s.startStopLock.Unlock()
+
+	if !s.isRunning() {
+		log.Println("Skipping ShutdownWithTimeout: child process not running")
+		return nil
+	}
 
 	if s.shutdownTimer != nil {
 		return errors.New("shutdown already started")
@@ -115,19 +135,10 @@ func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
 	log.Println("Terminating child process...")
 	err := s.Signal(syscall.SIGTERM)
 	if err != nil {
-		return fmt.Errorf("failed to shutdown child process: %v", err)
+		return fmt.Errorf("failed to terminate child process: %v", err)
 	}
 
 	s.shutdownTimer = time.AfterFunc(timeout, func() {
-		// Process set by Start - not started
-		if s.cmd.Process == nil {
-			return
-		}
-		// ProcessState set by Wait - already exited
-		if s.cmd.ProcessState != nil {
-			return
-		}
-
 		log.Printf("Timeout elapsed: %s\n", timeout)
 		err := s.ShutdownNow()
 		if err != nil {
@@ -137,6 +148,14 @@ func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
 	})
 
 	return nil
+}
+
+func (s *Supervisor) isRunning() bool {
+	// Process set by cmd.Start - means started
+	// https://golang.org/src/os/exec/exec.go?s=11514:11541#L422
+	// ProcessState set by cmd.Wait - means exited
+	// https://golang.org/src/os/exec/exec.go?s=14689:14715#L511
+	return s.cmd.Process != nil && s.cmd.ProcessState == nil
 }
 
 // String joins the command Path and Args and quotes any with spaces

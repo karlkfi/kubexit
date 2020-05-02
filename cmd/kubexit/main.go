@@ -104,6 +104,31 @@ func main() {
 		log.Printf("Namespace: %s\n", namespace)
 	}
 
+	child := supervisor.New(args[0], args[1:]...)
+
+	// watch for death deps early, so they can interrupt waiting for birth deps
+	if len(deathDeps) > 0 {
+		ctx, stopGraveyardWatcher := context.WithCancel(context.Background())
+		// stop graveyard watchers on exit, if not sooner
+		defer stopGraveyardWatcher()
+
+		log.Println("Watching graveyard...")
+		err = tombstone.Watch(ctx, graveyard, onDeathOfAny(deathDeps, func() {
+			stopGraveyardWatcher()
+			// trigger graceful shutdown
+			// Skipped if not started.
+			err := child.ShutdownWithTimeout(gracePeriod)
+			// ShutdownWithTimeout doesn't block until timeout
+			if err != nil {
+				log.Printf("Error: failed to shutdown: %v\n", err)
+				return
+			}
+		}))
+		if err != nil {
+			fatalf(child, ts, "Error: failed to watch graveyard: %v\n", err)
+		}
+	}
+
 	if len(birthDeps) > 0 {
 		// TODO: max start delay timeout
 		ctx, stopPodWatcher := context.WithCancel(context.Background())
@@ -112,11 +137,10 @@ func main() {
 
 		log.Println("Watching pod updates...")
 		err = kubernetes.WatchPod(ctx, namespace, podName,
-			newPodEventHandler(birthDeps, stopPodWatcher),
+			onReadyOfAll(birthDeps, stopPodWatcher),
 		)
 		if err != nil {
-			log.Printf("Error: failed to watch pod: %v\n", err)
-			os.Exit(1)
+			fatalf(child, ts, "Error: failed to watch pod: %v\n", err)
 		}
 
 		// Block until all birth deps are ready
@@ -125,48 +149,21 @@ func main() {
 		log.Printf("All birth deps ready: %v\n", strings.Join(birthDeps, ", "))
 	}
 
-	child := supervisor.New(args[0], args[1:]...)
-
-	log.Printf("Exec: %s\n", child)
 	err = child.Start()
 	if err != nil {
-		log.Printf("Error: failed to start child process: %v\n", err)
-		os.Exit(1)
+		fatalf(child, ts, "Error: %v\n", err)
 	}
 
-	born := time.Now()
-	ts.Born = &born
-
-	log.Printf("Creating tombstone: %s\n", ts.Path())
-	err = ts.Write()
+	err = ts.RecordBirth()
 	if err != nil {
-		fatalf(child, "Error: failed to create tombstone: %v\n", err)
-	}
-
-	if len(deathDeps) > 0 {
-		ctx, stopGraveyardWatcher := context.WithCancel(context.Background())
-		// stop graveyard watchers on exit, if not sooner
-		defer stopGraveyardWatcher()
-
-		log.Println("Watching graveyard...")
-		err = tombstone.Watch(ctx, graveyard,
-			newFSEventHandler(deathDeps, child, stopGraveyardWatcher, gracePeriod),
-		)
-		if err != nil {
-			fatalf(child, "Error: failed to watch graveyard: %v\n", err)
-		}
+		fatalf(child, ts, "Error: %v\n", err)
 	}
 
 	code := wait(child)
 
-	died := time.Now()
-	ts.Died = &died
-	ts.ExitCode = &code
-
-	log.Printf("Updating tombstone: %s\n", ts.Path())
-	err = ts.Write()
+	err = ts.RecordDeath(code)
 	if err != nil {
-		log.Printf("Error: failed to update tombstone: %v\n", err)
+		log.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -183,29 +180,44 @@ func wait(child *supervisor.Supervisor) int {
 		} else {
 			code = -1
 		}
-		log.Printf("Exit(%d): %v\n", code, err)
+		log.Printf("Child Exited(%d): %v\n", code, err)
 	} else {
 		code = 0
-		log.Println("Exit(0)")
+		log.Println("Child Exited(0)")
 	}
 	return code
 }
 
-// fatalf is for terminal errors while the child process is running.
-func fatalf(child *supervisor.Supervisor, msg string, args ...interface{}) {
+// fatalf is for terminal errors.
+// The child process may or may not be running.
+func fatalf(child *supervisor.Supervisor, ts *tombstone.Tombstone, msg string, args ...interface{}) {
 	log.Printf(msg, args...)
+
+	// Skipped if not started.
 	err := child.ShutdownNow()
 	if err != nil {
 		log.Printf("Error: failed to shutdown child process: %v", err)
 		os.Exit(1)
 	}
 
-	wait(child)
+	// Wait for shutdown...
+	//TODO: timout in case the process is zombie?
+	code := wait(child)
+
+	// Attempt to record death, if possible.
+	// Another process may be waiting for it.
+	err = ts.RecordDeath(code)
+	if err != nil {
+		log.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
 
 	os.Exit(1)
 }
 
-func newPodEventHandler(birthDeps []string, stopPodWatcher context.CancelFunc) kubernetes.EventHandler {
+// onReadyOfAll returns an EventHandler that executes the callback when all of
+// the birthDeps containers are ready.
+func onReadyOfAll(birthDeps []string, callback func()) kubernetes.EventHandler {
 	birthDepSet := map[string]struct{}{}
 	for _, depName := range birthDeps {
 		birthDepSet[depName] = struct{}{}
@@ -240,14 +252,13 @@ func newPodEventHandler(birthDeps []string, stopPodWatcher context.CancelFunc) k
 			}
 		}
 
-		// stop watching and unblock delayed start
-		stopPodWatcher()
+		callback()
 	}
 }
 
-// newFSEventHandler returns an EventHandler that shuts down the child process,
-// if the specified tombstone has a Died timestamp.
-func newFSEventHandler(deathDeps []string, child *supervisor.Supervisor, stopGraveyardWatcher context.CancelFunc, gracePeriod time.Duration) tombstone.EventHandler {
+// onDeathOfAny returns an EventHandler that executes the callback when any of
+// the deathDeps processes have died.
+func onDeathOfAny(deathDeps []string, callback func()) tombstone.EventHandler {
 	deathDepSet := map[string]struct{}{}
 	for _, depName := range deathDeps {
 		deathDepSet[depName] = struct{}{}
@@ -281,15 +292,6 @@ func newFSEventHandler(deathDeps []string, child *supervisor.Supervisor, stopGra
 		log.Printf("New death: %s\n", name)
 		log.Printf("Tombstone(%s): %s\n", name, ts)
 
-		// TODO: handle multiple deathDeps atomically
-
-		stopGraveyardWatcher()
-		// trigger graceful shutdown
-		err = child.ShutdownWithTimeout(gracePeriod)
-		// ShutdownWithTimeout doesn't block until timeout
-		if err != nil {
-			log.Printf("Error: failed to shutdown: %v\n", err)
-			return
-		}
+		callback()
 	}
 }

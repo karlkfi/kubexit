@@ -57,6 +57,32 @@ func (t *Tombstone) Write() error {
 	return nil
 }
 
+func (t *Tombstone) RecordBirth() error {
+	born := time.Now()
+	t.Born = &born
+
+	log.Printf("Creating tombstone: %s\n", t.Path())
+	err := t.Write()
+	if err != nil {
+		return fmt.Errorf("failed to create tombstone: ", err)
+	}
+	return nil
+}
+
+func (t *Tombstone) RecordDeath(exitCode int) error {
+	code := exitCode
+	died := time.Now()
+	t.Died = &died
+	t.ExitCode = &code
+
+	log.Printf("Updating tombstone: %s\n", t.Path())
+	err := t.Write()
+	if err != nil {
+		return fmt.Errorf("failed to update tombstone: ", err)
+	}
+	return nil
+}
+
 func (t *Tombstone) String() string {
 	inline, err := json.Marshal(t)
 	if err != nil {
