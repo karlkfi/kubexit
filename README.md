@@ -42,6 +42,7 @@ kubexit app1 &
 KUBEXIT_NAME=app2 \
 KUBEXIT_GRAVEYARD=/graveyard \
 KUBEXIT_BIRTH_DEPS=app1
+KUBEXIT_BIRTH_TIMEOUT=60s
 KUBEXIT_POD_NAME=example-pod
 KUBEXIT_NAMESPACE=example-namespace
 kubexit app2 &
@@ -63,6 +64,7 @@ Death Dependency:
 
 Birth Dependency:
 - `KUBEXIT_BIRTH_DEPS` - The name(s) of this process birth dependencies, comma separated.
+- `KUBEXIT_BIRTH_TIMEOUT` - Duration to wait for all birth dependencies to be ready. Default: `30s`.
 - `KUBEXIT_POD_NAME` - The name of the Kubernetes pod that this process and all its siblings are in.
 - `KUBEXIT_NAMESPACE` - The name of the Kubernetes namespace that this pod is in.
 

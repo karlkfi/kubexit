@@ -6,8 +6,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -71,6 +73,17 @@ func main() {
 		log.Printf("Death Deps: %s\n", strings.Join(deathDeps, ","))
 	}
 
+	birthTimeout := 30 * time.Second
+	birthTimeoutStr := os.Getenv("KUBEXIT_BIRTH_TIMEOUT")
+	if birthTimeoutStr != "" {
+		birthTimeout, err = time.ParseDuration(birthTimeoutStr)
+		if err != nil {
+			log.Printf("Error: failed to parse birth timeout: %v\n", err)
+			os.Exit(2)
+		}
+	}
+	log.Printf("Birth Timeout: %s\n", birthTimeout)
+
 	gracePeriod := 30 * time.Second
 	gracePeriodStr := os.Getenv("KUBEXIT_GRACE_PERIOD")
 	if gracePeriodStr != "" {
@@ -130,23 +143,10 @@ func main() {
 	}
 
 	if len(birthDeps) > 0 {
-		// TODO: max start delay timeout
-		ctx, stopPodWatcher := context.WithCancel(context.Background())
-		// stop pod watcher on exit, if not sooner
-		defer stopPodWatcher()
-
-		log.Println("Watching pod updates...")
-		err = kubernetes.WatchPod(ctx, namespace, podName,
-			onReadyOfAll(birthDeps, stopPodWatcher),
-		)
+		err = waitForBirthDeps(birthDeps, namespace, podName, birthTimeout)
 		if err != nil {
-			fatalf(child, ts, "Error: failed to watch pod: %v\n", err)
+			fatalf(child, ts, "Error: %v\n", err)
 		}
-
-		// Block until all birth deps are ready
-		// TODO: start delay timeout?
-		<-ctx.Done()
-		log.Printf("All birth deps ready: %v\n", strings.Join(birthDeps, ", "))
 	}
 
 	err = child.Start()
@@ -159,7 +159,7 @@ func main() {
 		fatalf(child, ts, "Error: %v\n", err)
 	}
 
-	code := wait(child)
+	code := waitForChildExit(child)
 
 	err = ts.RecordDeath(code)
 	if err != nil {
@@ -170,8 +170,65 @@ func main() {
 	os.Exit(code)
 }
 
+func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout time.Duration) error {
+	// Cancel context on SIGTERM to trigger graceful exit
+	ctx := withCancelOnSignal(context.Background(), syscall.SIGTERM)
+
+	ctx, stopPodWatcher := context.WithTimeout(ctx, timeout)
+	// Stop pod watcher on exit, if not sooner
+	defer stopPodWatcher()
+
+	log.Println("Watching pod updates...")
+	err := kubernetes.WatchPod(ctx, namespace, podName,
+		onReadyOfAll(birthDeps, stopPodWatcher),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to watch pod: %v", err)
+	}
+
+	// Block until all birth deps are ready
+	<-ctx.Done()
+	err = ctx.Err()
+	if err == context.DeadlineExceeded {
+		return fmt.Errorf("timed out waiting for birth deps to be ready: %s", timeout)
+	} else if err != nil && err != context.Canceled {
+		// ignore canceled. shouldn't be other errors, but just in case...
+		return fmt.Errorf("waiting for birth deps to be ready: %v", err)
+	}
+
+	log.Printf("All birth deps ready: %v\n", strings.Join(birthDeps, ", "))
+	return nil
+}
+
+// withCancelOnSignal calls cancel when one of the specified signals is recieved.
+func withCancelOnSignal(ctx context.Context, signals ...os.Signal) context.Context {
+	ctx, cancel := context.WithCancel(ctx)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, signals...)
+
+	// Trigger context cancel on SIGTERM
+	go func() {
+		for {
+			select {
+			case s, ok := <-sigCh:
+				if !ok {
+					return
+				}
+				log.Printf("Received shutdown signal: %v", s)
+				cancel()
+			case <-ctx.Done():
+				signal.Reset()
+				close(sigCh)
+			}
+		}
+	}()
+
+	return ctx
+}
+
 // wait for the child to exit and return the exit code
-func wait(child *supervisor.Supervisor) int {
+func waitForChildExit(child *supervisor.Supervisor) int {
 	var code int
 	err := child.Wait()
 	if err != nil {
@@ -202,7 +259,7 @@ func fatalf(child *supervisor.Supervisor, ts *tombstone.Tombstone, msg string, a
 
 	// Wait for shutdown...
 	//TODO: timout in case the process is zombie?
-	code := wait(child)
+	code := waitForChildExit(child)
 
 	// Attempt to record death, if possible.
 	// Another process may be waiting for it.
