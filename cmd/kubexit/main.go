@@ -134,7 +134,6 @@ func main() {
 			// ShutdownWithTimeout doesn't block until timeout
 			if err != nil {
 				log.Printf("Error: failed to shutdown: %v\n", err)
-				return
 			}
 		}))
 		if err != nil {

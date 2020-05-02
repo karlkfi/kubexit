@@ -84,22 +84,6 @@ func (s *Supervisor) Wait() error {
 	return s.cmd.Wait()
 }
 
-func (s *Supervisor) Signal(sig os.Signal) error {
-	s.startStopLock.Lock()
-	defer s.startStopLock.Unlock()
-
-	// Process set by Start
-	if s.cmd.Process == nil {
-		return errors.New("cannot signal unstarted child process")
-	}
-
-	err := s.cmd.Process.Signal(sig)
-	if err != nil {
-		return fmt.Errorf("failed to signal child process: %v", err)
-	}
-	return nil
-}
-
 func (s *Supervisor) ShutdownNow() error {
 	s.startStopLock.Lock()
 	defer s.startStopLock.Unlock()
@@ -112,7 +96,7 @@ func (s *Supervisor) ShutdownNow() error {
 	log.Println("Killing child process...")
 	// TODO: Use Process.Kill() instead?
 	// Sending Interrupt on Windows is not implemented.
-	err := s.Signal(syscall.SIGKILL)
+	err := s.cmd.Process.Signal(syscall.SIGKILL)
 	if err != nil {
 		return fmt.Errorf("failed to kill child process: %v", err)
 	}
@@ -133,7 +117,7 @@ func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
 	}
 
 	log.Println("Terminating child process...")
-	err := s.Signal(syscall.SIGTERM)
+	err := s.cmd.Process.Signal(syscall.SIGTERM)
 	if err != nil {
 		return fmt.Errorf("failed to terminate child process: %v", err)
 	}
