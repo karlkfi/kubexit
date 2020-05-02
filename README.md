@@ -1,10 +1,10 @@
 # kubexit
 Command supervisor for coordinated process termination.
 
-[![kubexit dockerhub stars](https://img.shields.io/docker/stars/karlkfi/kubexit.svg)(https://hub.docker.com/repository/docker/karlkfi/kubexit)
-[![kubexit dockerhub pulls](https://img.shields.io/docker/pulls/karlkfi/kubexit.svg)(https://hub.docker.com/repository/docker/karlkfi/kubexit)
-[![kubexit license](https://img.shields.io/github/license/karlkfi/kubexit.svg)(https://github.com/karlkfi/kubexit/blob/master/LICENSE)
-[![kubexit latest release](https://img.shields.io/github/v/release/karlkfi/kubexit.svg?include_prereleases&sort=semver)(https://github.com/karlkfi/kubexit/releases)
+![kubexit dockerhub stars](https://img.shields.io/docker/stars/karlkfi/kubexit.svg?link=https://hub.docker.com/repository/docker/karlkfi/kubexit)
+![kubexit dockerhub pulls](https://img.shields.io/docker/pulls/karlkfi/kubexit.svg?link=https://hub.docker.com/repository/docker/karlkfi/kubexit)
+![kubexit license](https://img.shields.io/github/license/karlkfi/kubexit.svg?link=https://github.com/karlkfi/kubexit/blob/master/LICENSE)
+![kubexit latest release](https://img.shields.io/github/v/release/karlkfi/kubexit.svg?include_prereleases&sort=semver&link=https://github.com/karlkfi/kubexit/releases)
 
 ## Tombstones
 
