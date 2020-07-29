@@ -30,6 +30,7 @@ jobs:
           repository: karlkfi/kubexit
           push: false
       - name: Setup kube tools
+        id: setup
         uses: yokawasa/action-setup-kube-tools@v0.1.0
         with:
           kubectl: '1.18.2'
@@ -64,4 +65,5 @@ jobs:
           kubectl=${{steps.setup.outputs.kubectl-path}}
           "${kubectl}" wait --for=condition=complete --timeout=5m job/client-server-job
       - name: Delete kind cluster
+        if: always()
         run: kind delete cluster e2e-test
