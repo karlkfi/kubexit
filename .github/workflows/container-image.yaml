@@ -19,3 +19,45 @@ jobs:
         repository: karlkfi/kubexit
         # Docker Automated Builds handle publishing
         push: false
+  e2e-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build image
+        uses: docker/build-push-action@v1
+        with:
+          repository: karlkfi/kubexit
+          push: false
+      - name: Setup kube tools
+        uses: yokawasa/action-setup-kube-tools@v0.1.0
+        with:
+          kubectl: '1.18.2'
+          kustomize: '3.8.1'
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.0.0
+        with:
+          version: v0.8.1
+          cluster_name: e2e-test
+      - name: Context logging
+        run: |
+          kubectl=${{steps.setup.outputs.kubectl-path}}
+          kustomize=${{steps.setup.outputs.kustomize-path}}
+
+          ${kubectl} version --client
+          ${kustomize} version
+
+          kubectl cluster-info
+          kubectl get pods -n kube-system
+          echo "current-context:" "$(kubectl config current-context)"
+          echo "environment-kubeconfig:" "${KUBECONFIG}"
+      - name: Apply job
+        env:
+          TEST_PATH: ci/e2e-test/client-server
+        run: |
+          cd "${TEST_PATH}"
+          kustomize edit set image karlkfi/kubexit=karlkfi/kubexit:latest
+          kustomize build . | kubectl apply -f -
+      - name: Await job
+        run: |
+          kubectl wait --for=condition=complete --timeout=5m job/client-server-job
