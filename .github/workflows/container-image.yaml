@@ -39,27 +39,29 @@ jobs:
         with:
           version: v0.8.1
           name: e2e-test
-      - name: Context logging
+      - name: Print Context
         run: |
           kubectl=${{steps.setup.outputs.kubectl-path}}
           kustomize=${{steps.setup.outputs.kustomize-path}}
 
-          ${kubectl} version --client
-          ${kustomize} version
+          "${kubectl}" version --client
+          "${kustomize}" version
 
-          kubectl cluster-info
-          kubectl get pods -n kube-system
-          echo "current-context:" "$(kubectl config current-context)"
+          "${kubectl}" cluster-info
+          "${kubectl}" get pods -n kube-system
+          echo "current-context:" "$("${kubectl}" config current-context)"
           echo "environment-kubeconfig:" "${KUBECONFIG}"
       - name: Apply job
         env:
           TEST_PATH: ci/e2e-test/client-server
         run: |
+          kustomize=${{steps.setup.outputs.kustomize-path}}
           cd "${TEST_PATH}"
-          kustomize edit set image karlkfi/kubexit=karlkfi/kubexit:latest
-          kustomize build . | kubectl apply -f -
+          "${kustomize}" edit set image karlkfi/kubexit=karlkfi/kubexit:latest
+          "${kustomize}" build . | kubectl apply -f -
       - name: Await job
         run: |
-          kubectl wait --for=condition=complete --timeout=5m job/client-server-job
+          kubectl=${{steps.setup.outputs.kubectl-path}}
+          "${kubectl}" wait --for=condition=complete --timeout=5m job/client-server-job
       - name: Delete kind cluster
         run: kind delete cluster e2e-test
