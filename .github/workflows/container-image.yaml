@@ -35,10 +35,10 @@ jobs:
           kubectl: '1.18.2'
           kustomize: '3.8.1'
       - name: Create kind cluster
-        uses: helm/kind-action@v1.0.0-rc1
+        uses: engineerd/setup-kind@v0.4.0
         with:
           version: v0.8.1
-          cluster_name: e2e-test
+          name: e2e-test
       - name: Context logging
         run: |
           kubectl=${{steps.setup.outputs.kubectl-path}}
@@ -61,3 +61,5 @@ jobs:
       - name: Await job
         run: |
           kubectl wait --for=condition=complete --timeout=5m job/client-server-job
+      - name: Delete kind cluster
+        run: kind delete cluster e2e-test
