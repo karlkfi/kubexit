@@ -35,6 +35,10 @@ jobs:
         with:
           kubectl: '1.18.2'
           kustomize: '3.8.1'
+      - name: Update path
+        run: |
+          echo "::add-path::$(dirname "${{steps.setup.outputs.kubectl-path}}")"
+          echo "::add-path::$(dirname "${{steps.setup.outputs.kustomize-path}}")"
       - name: Create kind cluster
         uses: engineerd/setup-kind@v0.4.0
         with:
@@ -42,11 +46,6 @@ jobs:
           name: e2e-test
       - name: Print Context
         run: |
-          kubectl=${{steps.setup.outputs.kubectl-path}}
-          cp "${kubectl}" /usr/local/bin/kubectl
-          kustomize=${{steps.setup.outputs.kustomize-path}}
-          cp "${kustomize}" /usr/local/bin/kustomize
-
           kubectl version --client
           kustomize version
 
