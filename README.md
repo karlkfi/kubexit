@@ -1,5 +1,6 @@
 # kubexit
-Command supervisor for coordinated process termination.
+
+Command supervisor for coordinated Kubernetes pod container termination.
 
 ![kubexit dockerhub stars](https://img.shields.io/docker/stars/karlkfi/kubexit.svg?link=https://hub.docker.com/repository/docker/karlkfi/kubexit)
 ![kubexit dockerhub pulls](https://img.shields.io/docker/pulls/karlkfi/kubexit.svg?link=https://hub.docker.com/repository/docker/karlkfi/kubexit)
