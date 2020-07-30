@@ -35,10 +35,12 @@ jobs:
         with:
           kubectl: '1.18.2'
           kustomize: '3.8.1'
+          jq: 'latest'
       - name: Update path
         run: |
           echo "::add-path::$(dirname "${{steps.setup.outputs.kubectl-path}}")"
           echo "::add-path::$(dirname "${{steps.setup.outputs.kustomize-path}}")"
+          echo "::add-path::$(dirname "${{steps.setup.outputs.jq-path}}")"
       - name: Create kind cluster
         uses: engineerd/setup-kind@v0.4.0
         with:
@@ -54,27 +56,9 @@ jobs:
           echo "current-context:" "$(kubectl config current-context)"
           echo "environment-kubeconfig:" "${KUBECONFIG}"
       - name: Apply job
-        env:
-          TEST_PATH: ci/e2e-test/client-server
-        run: |
-          cd "${TEST_PATH}"
-          kustomize edit set image karlkfi/kubexit=karlkfi/kubexit:latest
-          kustomize build . | kubectl apply -f -
+        run: ci/e2e-test/client-server/apply-job.sh
       - name: Await job
-        run: |
-          kubectl wait pod --selector=job-name=client-server-job --for=condition=Initialized --timeout=2m
-          timeout=120
-          SECONDS=0
-          while (( SECONDS < timeout )); do
-            job_status=$(kubectl get pods --selector=job-name=client-server-job -o jsonpath="{.items[*].status.containerStatuses[*].state.terminated.reason}")
-            if [[ "${job_status}" == *"Completed" -o "${job_status}" == *"Error" ]]; then
-              echo "Status: ${job_status}"
-              break
-            fi
-            sleep 2
-          done
-          kubectl logs --selector=job-name=client-server-job --all-containers --tail=-1
-          kubectl get pods --selector=job-name=client-server-job -o yaml
+        run: ci/e2e-test/client-server/await-job.sh
       - name: Delete kind cluster
         if: always()
         run: kind delete cluster --name e2e-test
