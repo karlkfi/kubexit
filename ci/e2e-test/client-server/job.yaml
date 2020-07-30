@@ -9,6 +9,7 @@ spec:
       labels:
         app: client-server-job
     spec:
+      serviceAccountName: client-server-job
       restartPolicy: Never
       volumes:
       - name: graveyard

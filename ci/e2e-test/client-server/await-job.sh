@@ -14,7 +14,7 @@ timeout=120
 SECONDS=0
 while (( SECONDS < timeout )); do
     job_status="$(kubectl get pods --selector=job-name=client-server-job -o jsonpath="{.items[*].status.containerStatuses[*].state.terminated.reason}")"
-    if [[ "${job_status}" == *"Completed" || "${job_status}" == *"Error" ]]; then
+    if [[ "${job_status}" == "Completed Completed" || "${job_status}" == *"Error" ]]; then
         echo "Status: ${job_status}"
         break
     fi
