@@ -75,7 +75,9 @@ func (s *Supervisor) Start() error {
 func (s *Supervisor) Wait() error {
 	defer func() {
 		signal.Reset()
-		close(s.sigCh)
+		if s.sigCh != nil {
+			close(s.sigCh)
+		}
 		if s.shutdownTimer != nil {
 			s.shutdownTimer.Stop()
 		}
