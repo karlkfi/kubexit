@@ -1,0 +1,57 @@
+---
+name: End-to-End Tests
+
+on:
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Build image
+        # https://help.github.com/en/actions/language-and-framework-guides/publishing-docker-images
+        # https://github.com/docker/build-push-action
+        uses: docker/build-push-action@v1
+        with:
+          repository: karlkfi/kubexit
+          # Docker Automated Builds handle publishing
+          push: false
+      - name: Setup kube tools
+        id: setup
+        uses: yokawasa/action-setup-kube-tools@v0.1.0
+        with:
+          kubectl: '1.18.2'
+          kustomize: '3.8.1'
+          jq: 'latest'
+      - name: Update path
+        run: |
+          echo "::add-path::$(dirname "${{steps.setup.outputs.kubectl-path}}")"
+          echo "::add-path::$(dirname "${{steps.setup.outputs.kustomize-path}}")"
+          echo "::add-path::$(dirname "${{steps.setup.outputs.jq-path}}")"
+      - name: Create kind cluster
+        uses: engineerd/setup-kind@v0.4.0
+        with:
+          version: v0.8.1
+          name: e2e-test
+      - name: Print Context
+        run: |
+          kubectl version --client
+          kustomize version
+
+          kubectl cluster-info
+          kubectl get pods -n kube-system
+          echo "current-context:" "$(kubectl config current-context)"
+          echo "environment-kubeconfig:" "${KUBECONFIG}"
+      - name: Apply job
+        run: ci/e2e-test/client-server/apply-job.sh
+      - name: Await job
+        run: ci/e2e-test/client-server/await-job.sh
+      - name: Delete job
+        run: ci/e2e-test/client-server/delete-job.sh
+      - name: Delete kind cluster
+        if: always()
+        run: kind delete cluster --name e2e-test
