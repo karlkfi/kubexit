@@ -7,12 +7,21 @@ Command supervisor for coordinated Kubernetes pod container termination.
 ![kubexit license](https://img.shields.io/github/license/karlkfi/kubexit.svg?link=https://github.com/karlkfi/kubexit/blob/master/LICENSE)
 ![kubexit latest release](https://img.shields.io/github/v/release/karlkfi/kubexit.svg?include_prereleases&sort=semver&link=https://github.com/karlkfi/kubexit/releases)
 
+## Use Cases
+
+Kubernetes supports multiple containers in a pod, but there is no current feature to manage dependency ordering, so all the containers (other than init containers) start at the same time. This can cause a number of issues with certain configurations, some of which kubexit is designed to mitigate.
+
+1. Kubernetes jobs run until all containers have exited. If a sidecar container is supporting a primary container, the sidecar needs to be gracefully terminated after the primary container has exited, before the job will end. Kubexit mitigates this with death dependencies.
+2. Sidecar proxies (e.g. Istio, CloudSQL Proxy) are often designed to handle network traffic to and from a pod's primary container. But if the primary container tries to make egress call or recieve ingress calls before the sidecar proxy is up and ready, those call may fail. Kubernetes mitigates this with birth dependencies.
+
 ## Tombstones
 
-kubexit carves a tombstone at `${KUBEXIT_GRAVEYARD}/${KUBEXIT_NAME}` to mark the birth and death of the process it supervises:
+kubexit automatically carves a tombstone at `${KUBEXIT_GRAVEYARD}/${KUBEXIT_NAME}` to mark the birth and death of the process it supervises:
 
 1. When a wrapped app starts, kubexit will write a tombstone with a `Born` timestamp.
 1. When a wrapped app exits, kubexit will update the tombstone with a `Died` timestamp and the `ExitCode`.
+
+These tombstones are written to the graveyard, a folder on the local file system. In Kubernetes, an in-memory volume can be used to share the graveyard between containers in a pod. By watching the file system inodes in the graveyard, kubexit will know when the other containers in the pod start and stop.
 
 Tombstone Content:
 
