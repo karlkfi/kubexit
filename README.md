@@ -16,7 +16,7 @@ Kubernetes supports multiple containers in a pod, but there is no current featur
 
 ## Tombstones
 
-kubexit automatically carves a tombstone at `${KUBEXIT_GRAVEYARD}/${KUBEXIT_NAME}` to mark the birth and death of the process it supervises:
+kubexit automatically carves (writes to disk) a tombstone (`${KUBEXIT_GRAVEYARD}/${KUBEXIT_NAME}`) to mark the birth and death of the process it supervises:
 
 1. When a wrapped app starts, kubexit will write a tombstone with a `Born` timestamp.
 1. When a wrapped app exits, kubexit will update the tombstone with a `Died` timestamp and the `ExitCode`.
