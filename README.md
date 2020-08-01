@@ -12,7 +12,7 @@ Command supervisor for coordinated Kubernetes pod container termination.
 Kubernetes supports multiple containers in a pod, but there is no current feature to manage dependency ordering, so all the containers (other than init containers) start at the same time. This can cause a number of issues with certain configurations, some of which kubexit is designed to mitigate.
 
 1. Kubernetes jobs run until all containers have exited. If a sidecar container is supporting a primary container, the sidecar needs to be gracefully terminated after the primary container has exited, before the job will end. Kubexit mitigates this with death dependencies.
-2. Sidecar proxies (e.g. Istio, CloudSQL Proxy) are often designed to handle network traffic to and from a pod's primary container. But if the primary container tries to make egress call or recieve ingress calls before the sidecar proxy is up and ready, those call may fail. Kubernetes mitigates this with birth dependencies.
+2. Sidecar proxies (e.g. Istio, CloudSQL Proxy) are often designed to handle network traffic to and from a pod's primary container. But if the primary container tries to make egress call or recieve ingress calls before the sidecar proxy is up and ready, those calls may fail. Kubexit mitigates this with birth dependencies.
 
 ## Tombstones
 
