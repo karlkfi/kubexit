@@ -320,13 +320,11 @@ func onDeathOfAny(deathDeps []string, callback func()) tombstone.EventHandler {
 		deathDepSet[depName] = struct{}{}
 	}
 
-	return func(event fsnotify.Event) {
-		if event.Op&fsnotify.Create != fsnotify.Create && event.Op&fsnotify.Write != fsnotify.Write {
-			// ignore other events
+	return func(graveyard string, name string, op fsnotify.Op) {
+		if op != 0 && op&fsnotify.Create != fsnotify.Create && op&fsnotify.Write != fsnotify.Write {
+			// ignore events other than initial, create and write
 			return
 		}
-		graveyard := filepath.Dir(event.Name)
-		name := filepath.Base(event.Name)
 
 		log.Printf("Tombstone modified: %s\n", name)
 		if _, ok := deathDepSet[name]; !ok {

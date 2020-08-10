@@ -111,24 +111,24 @@ func Read(graveyard, name string) (*Tombstone, error) {
 	return &t, nil
 }
 
-type EventHandler func(fsnotify.Event)
+type EventHandler func(string, string, fsnotify.Op)
 
 // LoggingEventHandler is an example EventHandler that logs fsnotify events
-func LoggingEventHandler(event fsnotify.Event) {
-	if event.Op&fsnotify.Create == fsnotify.Create {
-		log.Printf("Tombstone Watch: file created: %s\n", event.Name)
+func LoggingEventHandler(graveyard string, tombstone string, op fsnotify.Op) {
+	if op&fsnotify.Create == fsnotify.Create {
+		log.Printf("Tombstone Watch: file created: %s/%s\n", graveyard, tombstone)
 	}
-	if event.Op&fsnotify.Remove == fsnotify.Remove {
-		log.Printf("Tombstone Watch: file removed: %s\n", event.Name)
+	if op&fsnotify.Remove == fsnotify.Remove {
+		log.Printf("Tombstone Watch: file removed: %s/%s\n", graveyard, tombstone)
 	}
-	if event.Op&fsnotify.Write == fsnotify.Write {
-		log.Printf("Tombstone Watch: file modified: %s\n", event.Name)
+	if op&fsnotify.Write == fsnotify.Write {
+		log.Printf("Tombstone Watch: file modified: %s/%s\n", graveyard, tombstone)
 	}
-	if event.Op&fsnotify.Rename == fsnotify.Rename {
-		log.Printf("Tombstone Watch: file renamed: %s\n", event.Name)
+	if op&fsnotify.Rename == fsnotify.Rename {
+		log.Printf("Tombstone Watch: file renamed: %s/%s\n", graveyard, tombstone)
 	}
-	if event.Op&fsnotify.Chmod == fsnotify.Chmod {
-		log.Printf("Tombstone Watch: file chmoded: %s\n", event.Name)
+	if op&fsnotify.Chmod == fsnotify.Chmod {
+		log.Printf("Tombstone Watch: file chmoded: %s/%s\n", graveyard, tombstone)
 	}
 }
 
@@ -151,7 +151,9 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 				if !ok {
 					return
 				}
-				eventHandler(event)
+				graveyard := filepath.Dir(event.Name)
+				tombstone := filepath.Base(event.Name)
+				eventHandler(graveyard, tombstone, event.Op)
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
@@ -166,5 +168,22 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 	if err != nil {
 		return fmt.Errorf("failed to add watcher: %v", err)
 	}
+
+	// fire initial events after we started watching, this way no events are ever missed
+	f, err := os.Open(graveyard)
+    if err != nil {
+        return fmt.Errorf("failed to watch graveyard: %v", err)
+	}
+	
+    files, err := f.Readdir(-1)
+    f.Close()
+    if err != nil {
+        return fmt.Errorf("failed to watch for initial tombstones: %v", err)
+    }
+
+    for _, file := range files {
+        eventHandler(graveyard, file.Name(), 0)
+    }
+
 	return nil
 }
