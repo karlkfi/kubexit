@@ -91,8 +91,7 @@ func (s *Supervisor) ShutdownNow() error {
 	defer s.startStopLock.Unlock()
 
 	if !s.isRunning() {
-		log.Println("Skipping ShutdownNow: child process not running")
-		return nil
+		return errors.New("child process not running")
 	}
 
 	log.Println("Killing child process...")
@@ -110,8 +109,7 @@ func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
 	defer s.startStopLock.Unlock()
 
 	if !s.isRunning() {
-		log.Println("Skipping ShutdownWithTimeout: child process not running")
-		return nil
+		return errors.New("child process not running")
 	}
 
 	if s.shutdownTimer != nil {

@@ -126,15 +126,16 @@ func main() {
 		defer stopGraveyardWatcher()
 
 		log.Println("Watching graveyard...")
-		err = tombstone.Watch(ctx, graveyard, onDeathOfAny(deathDeps, func() {
+		err = tombstone.Watch(ctx, graveyard, onDeathOfAny(deathDeps, func() error {
 			stopGraveyardWatcher()
 			// trigger graceful shutdown
-			// Skipped if not started.
-			err := child.ShutdownWithTimeout(gracePeriod)
+			// Error & exit if not started.
 			// ShutdownWithTimeout doesn't block until timeout
+			err := child.ShutdownWithTimeout(gracePeriod)
 			if err != nil {
-				log.Printf("Error: failed to shutdown: %v\n", err)
+				return fmt.Errorf("failed to shutdown: %v", err)
 			}
+			return nil
 		}))
 		if err != nil {
 			fatalf(child, ts, "Error: failed to watch graveyard: %v\n", err)
@@ -314,16 +315,16 @@ func onReadyOfAll(birthDeps []string, callback func()) kubernetes.EventHandler {
 
 // onDeathOfAny returns an EventHandler that executes the callback when any of
 // the deathDeps processes have died.
-func onDeathOfAny(deathDeps []string, callback func()) tombstone.EventHandler {
+func onDeathOfAny(deathDeps []string, callback func() error) tombstone.EventHandler {
 	deathDepSet := map[string]struct{}{}
 	for _, depName := range deathDeps {
 		deathDepSet[depName] = struct{}{}
 	}
 
-	return func(event fsnotify.Event) {
+	return func(event fsnotify.Event) error {
 		if event.Op&fsnotify.Create != fsnotify.Create && event.Op&fsnotify.Write != fsnotify.Write {
 			// ignore other events
-			return
+			return nil
 		}
 		graveyard := filepath.Dir(event.Name)
 		name := filepath.Base(event.Name)
@@ -331,23 +332,23 @@ func onDeathOfAny(deathDeps []string, callback func()) tombstone.EventHandler {
 		log.Printf("Tombstone modified: %s\n", name)
 		if _, ok := deathDepSet[name]; !ok {
 			// ignore other tombstones
-			return
+			return nil
 		}
 
 		log.Printf("Reading tombstone: %s\n", name)
 		ts, err := tombstone.Read(graveyard, name)
 		if err != nil {
 			log.Printf("Error: failed to read tombstone: %v\n", err)
-			return
+			return nil
 		}
 
 		if ts.Died == nil {
 			// still alive
-			return
+			return nil
 		}
 		log.Printf("New death: %s\n", name)
 		log.Printf("Tombstone(%s): %s\n", name, ts)
 
-		callback()
+		return callback()
 	}
 }
