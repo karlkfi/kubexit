@@ -7,6 +7,13 @@ on:
     - master
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Lint Go Code
+        run: make lint
   e2e-test:
     runs-on: ubuntu-latest
     steps:

@@ -23,7 +23,7 @@ type Tombstone struct {
 	Graveyard string `json:"-"`
 	Name      string `json:"-"`
 
-	fileLock sync.Mutex `json:"-"`
+	fileLock sync.Mutex
 }
 
 func (t *Tombstone) Path() string {
@@ -64,7 +64,7 @@ func (t *Tombstone) RecordBirth() error {
 	log.Printf("Creating tombstone: %s\n", t.Path())
 	err := t.Write()
 	if err != nil {
-		return fmt.Errorf("failed to create tombstone: ", err)
+		return fmt.Errorf("failed to create tombstone: %v", err)
 	}
 	return nil
 }
@@ -78,7 +78,7 @@ func (t *Tombstone) RecordDeath(exitCode int) error {
 	log.Printf("Updating tombstone: %s\n", t.Path())
 	err := t.Write()
 	if err != nil {
-		return fmt.Errorf("failed to update tombstone: ", err)
+		return fmt.Errorf("failed to update tombstone: %v", err)
 	}
 	return nil
 }
@@ -86,7 +86,8 @@ func (t *Tombstone) RecordDeath(exitCode int) error {
 func (t *Tombstone) String() string {
 	inline, err := json.Marshal(t)
 	if err != nil {
-		return fmt.Sprintf("%+v", t)
+		log.Printf("Error: failed to marshal tombstone as json: %v\n", err)
+		return "{}"
 	}
 	return string(inline)
 }
