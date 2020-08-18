@@ -53,12 +53,18 @@ jobs:
           kubectl get pods -n kube-system
           echo "current-context:" "$(kubectl config current-context)"
           echo "environment-kubeconfig:" "${KUBECONFIG}"
-      - name: Apply job
-        run: ci/e2e-test/client-server/apply-job.sh
-      - name: Await job
-        run: ci/e2e-test/client-server/await-job.sh
-      - name: Delete job
-        run: ci/e2e-test/client-server/delete-job.sh
+      - name: Test client-server
+        run: |
+          set -o errexit -o nounset -o pipefail
+          ci/e2e-test/client-server/apply-job.sh
+          ci/e2e-test/client-server/await-job.sh
+          ci/e2e-test/client-server/delete-job.sh
+      - name: Test client-server-slow-start
+        run: |
+          set -o errexit -o nounset -o pipefail
+          ci/e2e-test/client-server-slow-start/apply-job.sh
+          ci/e2e-test/client-server-slow-start/await-job.sh
+          ci/e2e-test/client-server-slow-start/delete-job.sh
       - name: Delete kind cluster
         if: always()
         run: kind delete cluster --name e2e-test

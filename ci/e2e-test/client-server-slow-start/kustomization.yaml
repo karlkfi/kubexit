@@ -1,0 +1,11 @@
+resources:
+- service-account.yaml
+- role.yaml
+- role-binding.yaml
+- job.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: karlkfi/kubexit
+  newName: karlkfi/kubexit
+  newTag: latest
