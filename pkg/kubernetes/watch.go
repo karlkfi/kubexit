@@ -3,8 +3,8 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"log"
 
+	"github.com/karlkfi/kubexit/pkg/log"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -55,17 +55,24 @@ func WatchPod(ctx context.Context, namespace, podName string, eventHandler Event
 		// cancel the provided context when done, so that caller can block on it
 		defer cancel()
 
+		log.G(ctx).WithField("pod_name", podName).Info("pod watcher starting...")
+
 		// watch until deleted
 		_, err := watchtools.UntilWithSync(ctx, lw, &corev1.Pod{}, nil, func(event watch.Event) (bool, error) {
 			if event.Type == watch.Error {
-				log.Printf("Pod Watch(%s): recoverable error: %+v\n", podName, event.Object)
+				log.G(ctx).
+					WithField("pod_name", podName).
+					WithField("object", event.Object).
+					Warn("recieved recoverable error from pod watcher")
 				return false, nil
 			}
 
 			eventHandler(event)
 
 			if event.Type == watch.Deleted {
-				log.Printf("Pod Watch(%s): pod deleted\n", podName)
+				log.G(ctx).
+					WithField("pod_name", podName).
+					Info("pod deleted")
 				return true, nil
 			}
 			return false, nil
@@ -74,9 +81,12 @@ func WatchPod(ctx context.Context, namespace, podName string, eventHandler Event
 		// Since cancellation is the only way we exit, just ignore it.
 		if err != nil && err != wait.ErrWaitTimeout {
 			// TODO: should we do something about this??
-			log.Printf("Pod Watch(%s): terminal error: %v\n", podName, err)
+			log.G(ctx).
+				WithField("pod_name", podName).
+				WithField("error", err).
+				Warn("recieved terminal error from pod watcher")
 		}
-		log.Printf("Pod Watch(%s): done\n", podName)
+		log.G(ctx).WithField("pod_name", podName).Info("pod watcher stopped")
 	}()
 
 	return nil
