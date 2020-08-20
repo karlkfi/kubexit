@@ -90,7 +90,7 @@ func (t *Tombstone) RecordDeath(ctx context.Context, exitCode int) error {
 func (t *Tombstone) String() string {
 	inline, err := json.Marshal(t)
 	if err != nil {
-		log.Printf("Error: failed to marshal tombstone as json: %v\n", err)
+		log.L.Errorf("failed to marshal tombstone as json: %v", err)
 		return "{}"
 	}
 	return string(inline)
