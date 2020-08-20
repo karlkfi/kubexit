@@ -77,7 +77,7 @@ func main() {
 	if birthTimeoutStr != "" {
 		birthTimeout, err = time.ParseDuration(birthTimeoutStr)
 		if err != nil {
-			log.G(ctx).Errorf("failed to parse birth timeout: %v\n", err)
+			log.G(ctx).Errorf("failed to parse birth timeout: %v", err)
 			os.Exit(2)
 		}
 	}
@@ -88,7 +88,7 @@ func main() {
 	if gracePeriodStr != "" {
 		gracePeriod, err = time.ParseDuration(gracePeriodStr)
 		if err != nil {
-			log.G(ctx).Printf("Error: failed to parse grace period: %v\n", err)
+			log.G(ctx).Errorf("failed to parse grace period: %v", err)
 			os.Exit(2)
 		}
 	}
@@ -158,7 +158,7 @@ func main() {
 
 	err = ts.RecordDeath(ctx, code)
 	if err != nil {
-		log.G(ctx).Printf("Error: %v\n", err)
+		log.G(ctx).Error(err)
 		os.Exit(1)
 	}
 
@@ -173,7 +173,7 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 	// Stop pod watcher on exit, if not sooner
 	defer stopPodWatcher()
 
-	log.G(ctx).Info("Watching pod updates...")
+	log.G(ctx).Info("watching pod updates...")
 	err := kubernetes.WatchPod(ctx, namespace, podName,
 		onReadyOfAll(ctx, birthDeps, stopPodWatcher),
 	)
@@ -191,7 +191,7 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 		return fmt.Errorf("waiting for birth deps to be ready: %v", err)
 	}
 
-	log.G(ctx).Printf("All birth deps ready: %v\n", strings.Join(birthDeps, ", "))
+	log.G(ctx).WithField("birth_deps", birthDeps).Info("all birth deps ready")
 	return nil
 }
 
@@ -210,7 +210,7 @@ func withCancelOnSignal(ctx context.Context, signals ...os.Signal) context.Conte
 				if !ok {
 					return
 				}
-				log.G(ctx).Printf("Received shutdown signal: %v", s)
+				log.G(ctx).WithField("signal", s).Info("received shutdown signal")
 				cancel()
 			case <-ctx.Done():
 				signal.Reset()

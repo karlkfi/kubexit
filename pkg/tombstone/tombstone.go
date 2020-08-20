@@ -61,7 +61,9 @@ func (t *Tombstone) RecordBirth(ctx context.Context) error {
 	born := time.Now()
 	t.Born = &born
 
-	log.G(ctx).Printf("Creating tombstone: %s\n", t.Path())
+	log.G(ctx).
+		WithField("tombstone", t.Path()).
+		Info("creating tombstone...")
 	err := t.Write()
 	if err != nil {
 		return fmt.Errorf("failed to create tombstone: %v", err)
@@ -75,7 +77,9 @@ func (t *Tombstone) RecordDeath(ctx context.Context, exitCode int) error {
 	t.Died = &died
 	t.ExitCode = &code
 
-	log.G(ctx).Printf("Updating tombstone: %s\n", t.Path())
+	log.G(ctx).
+		WithField("tombstone", t.Path()).
+		Info("updating tombstone...")
 	err := t.Write()
 	if err != nil {
 		return fmt.Errorf("failed to update tombstone: %v", err)
@@ -116,21 +120,7 @@ type EventHandler func(context.Context, fsnotify.Event) error
 
 // LoggingEventHandler is an example EventHandler that logs fsnotify events
 func LoggingEventHandler(ctx context.Context, event fsnotify.Event) error {
-	if event.Op&fsnotify.Create == fsnotify.Create {
-		log.G(ctx).Printf("Tombstone Watch: file created: %s\n", event.Name)
-	}
-	if event.Op&fsnotify.Remove == fsnotify.Remove {
-		log.G(ctx).Printf("Tombstone Watch: file removed: %s\n", event.Name)
-	}
-	if event.Op&fsnotify.Write == fsnotify.Write {
-		log.G(ctx).Printf("Tombstone Watch: file modified: %s\n", event.Name)
-	}
-	if event.Op&fsnotify.Rename == fsnotify.Rename {
-		log.G(ctx).Printf("Tombstone Watch: file renamed: %s\n", event.Name)
-	}
-	if event.Op&fsnotify.Chmod == fsnotify.Chmod {
-		log.G(ctx).Printf("Tombstone Watch: file chmoded: %s\n", event.Name)
-	}
+	log.G(ctx).WithField("event_name", event.Name).Info("recieved tombstone watch event")
 	return nil
 }
 
@@ -147,7 +137,9 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 		for {
 			select {
 			case <-ctx.Done():
-				log.G(ctx).Printf("Tombstone Watch(%s): done\n", graveyard)
+				log.G(ctx).
+					WithField("graveyard", graveyard).
+					Info("tombstone watcher stopped")
 				return
 			case event, ok := <-watcher.Events:
 				if !ok {
@@ -155,13 +147,18 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 				}
 				err := eventHandler(ctx, event)
 				if err != nil {
-					log.G(ctx).Printf("Tombstone Watch(%s): error handling file system event: %v\n", graveyard, err)
+					log.G(ctx).
+						WithField("event_name", event.Name).
+						WithField("graveyard", graveyard).
+						Warn(fmt.Errorf("error handling file system event: %v", err))
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				log.G(ctx).Printf("Tombstone Watch(%s): error from fsnotify: %v\n", graveyard, err)
+				log.G(ctx).
+					WithField("graveyard", graveyard).
+					Warn(fmt.Errorf("error handling file system event: %v", err))
 				// TODO: wrap ctx with WithCancel and cancel on terminal errors, if any
 			}
 		}

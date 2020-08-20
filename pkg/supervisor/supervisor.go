@@ -63,7 +63,7 @@ func (s *Supervisor) Start() error {
 			}
 			// log everything but "urgent I/O condition", which gets noisy
 			if sig != syscall.SIGURG {
-				log.G(s.ctx).Printf("Received signal: %v\n", sig)
+				log.G(s.ctx).WithField("signal", sig).Info("received signal")
 			}
 			// ignore "child exited" signal
 			if sig == syscall.SIGCHLD {
@@ -71,7 +71,7 @@ func (s *Supervisor) Start() error {
 			}
 			err := s.cmd.Process.Signal(sig)
 			if err != nil {
-				log.G(s.ctx).Printf("Signal propegation failed: %v\n", err)
+				log.G(s.ctx).WithField("signal", sig).Errorf("signal propegation failed: %v", err)
 			}
 		}
 	}()
