@@ -34,6 +34,7 @@ jobs:
         uses: docker/build-push-action@v1
         with:
           repository: karlkfi/kubexit
+          tag_with_sha: true
           # Docker Automated Builds handle publishing
           push: false
       - name: Setup kube tools
