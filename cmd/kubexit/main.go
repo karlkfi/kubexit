@@ -138,7 +138,7 @@ func main() {
 	}
 
 	if len(birthDeps) > 0 {
-		err = waitForBirthDeps(birthDeps, namespace, podName, birthTimeout)
+		err = waitForBirthDeps(ctx, birthDeps, namespace, podName, birthTimeout)
 		if err != nil {
 			fatal(ctx, child, ts, err)
 		}
@@ -165,9 +165,9 @@ func main() {
 	os.Exit(code)
 }
 
-func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout time.Duration) error {
+func waitForBirthDeps(ctx context.Context, birthDeps []string, namespace, podName string, timeout time.Duration) error {
 	// Cancel context on SIGTERM to trigger graceful exit
-	ctx := withCancelOnSignal(context.Background(), syscall.SIGTERM)
+	ctx = withCancelOnSignal(ctx, syscall.SIGTERM)
 
 	ctx, stopPodWatcher := context.WithTimeout(ctx, timeout)
 	// Stop pod watcher on exit, if not sooner
