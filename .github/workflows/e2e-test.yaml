@@ -10,6 +10,15 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
+      - name: Install Go
+        # https://github.com/mvdan/github-actions-golang
+        uses: actions/setup-go@v2
+        with:
+          go-version: "1.15.x"
+      - name: Install goimports
+        run: |
+          GO111MODULE=off go get golang.org/x/tools/cmd/goimports
+          echo "::add-path::$(go env GOPATH)/bin"
       - name: Checkout
         uses: actions/checkout@v2
       - name: Lint Go Code
