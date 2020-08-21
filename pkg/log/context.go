@@ -16,6 +16,8 @@ var (
 )
 
 func init() {
+	DefaultLogger = logrus.StandardLogger()
+
 	// TODO: make configurable
 	// use "severity" instead of "level" for Stackdriver
 	DefaultLogger.SetFormatter(
