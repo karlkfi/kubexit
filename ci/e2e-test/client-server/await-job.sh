@@ -32,5 +32,6 @@ kubectl get pods --selector=job-name=client-server-job -o json | jq '.items[].st
 
 echo "Status: ${job_status}"
 if [[ "${job_status}" == *"Error" ]]; then
+    echo "Expected: Completed Completed"
     exit 1
 fi
