@@ -28,12 +28,11 @@ spec:
 
       containers:
       - name: client
-        image: alpine:3.11
+        image: karlkfi/test-client:latest
         command: ['sh', '-c']
         args:
         - |
           set -o errexit -o nounset -o pipefail
-          apk --no-cache add ca-certificates tzdata curl bash
           /kubexit/kubexit curl -v --fail http://localhost:80/
         env:
         - name: KUBEXIT_NAME

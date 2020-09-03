@@ -9,3 +9,6 @@ images:
 - name: karlkfi/kubexit
   newName: karlkfi/kubexit
   newTag: latest
+- name: karlkfi/test-client
+  newName: karlkfi/test-client
+  newTag: latest

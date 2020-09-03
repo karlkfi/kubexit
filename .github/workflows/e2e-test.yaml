@@ -63,8 +63,14 @@ jobs:
           kubectl get pods -n kube-system
           echo "current-context:" "$(kubectl config current-context)"
           echo "environment-kubeconfig:" "${KUBECONFIG}"
-      - name: Load Image
+      - name: Load kubexit Image
         run: kind load docker-image "karlkfi/kubexit:sha-${GITHUB_SHA:0:7}" --name e2e-test
+      - name: Build & Load test-client Image
+        run: |
+          set -o errexit -o nounset -o pipefail
+          IMAGE_TAG="karlkfi/test-client:sha-${GITHUB_SHA:0:7}"
+          docker build --tag "${IMAGE_TAG}" ci/e2e-test/assets/test-client/
+          kind load docker-image "${IMAGE_TAG}" --name e2e-test
       - name: Test client-server
         run: |
           set -o errexit -o nounset -o pipefail

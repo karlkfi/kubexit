@@ -11,4 +11,5 @@ fi
 
 echo "Image: karlkfi/kubexit:${IMAGE_TAG}"
 kustomize edit set image "karlkfi/kubexit=karlkfi/kubexit:${IMAGE_TAG}"
+kustomize edit set image "karlkfi/test-client=karlkfi/test-client:${IMAGE_TAG}"
 kustomize build . | kubectl apply -f -
