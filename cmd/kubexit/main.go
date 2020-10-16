@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -164,6 +165,17 @@ func main() {
 	if err != nil {
 		log.Printf("Error: %v\n", err)
 		os.Exit(1)
+	}
+
+	exitCodeOverrideStr := os.Getenv("KUBEXIT_EXIT_CODE_OVERRIDE")
+	if exitCodeOverrideStr != "" {
+		exitCodeOverride, err := strconv.Atoi(exitCodeOverrideStr)
+		if err != nil {
+			log.Printf("Error: failed to parse exit code override: %v\n", err)
+			os.Exit(2)
+		}
+		log.Printf("Exit code override: %d\n", exitCodeOverride)
+		os.Exit(exitCodeOverride)
 	}
 
 	os.Exit(code)
