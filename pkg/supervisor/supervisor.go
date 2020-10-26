@@ -62,9 +62,12 @@ func (s *Supervisor) Start() error {
 			if sig == syscall.SIGCHLD {
 				continue
 			}
-			err := s.cmd.Process.Signal(sig)
-			if err != nil {
-				log.Printf("Signal propegation failed: %v\n", err)
+			// Test that process still exists
+			if err := s.cmd.Process.Signal(syscall.Signal(0)); err == nil {
+				err := s.cmd.Process.Signal(sig)
+				if err != nil {
+					log.Printf("Signal propegation failed: %v\n", err)
+				}
 			}
 		}
 	}()
