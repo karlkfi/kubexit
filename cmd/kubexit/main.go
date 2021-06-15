@@ -153,6 +153,7 @@ func main() {
 	}
 
 	// watch for death deps early, so they can interrupt waiting for birth deps
+	childStoppedByKubexit := false
 	if len(deathDeps) > 0 {
 		ctx, stopGraveyardWatcher := context.WithCancel(context.Background())
 		// stop graveyard watchers on exit, if not sooner
@@ -161,6 +162,7 @@ func main() {
 		log.Println("Watching graveyard...")
 		err = tombstone.Watch(ctx, graveyard, onDeathOfAny(deathDeps, func() {
 			stopGraveyardWatcher()
+			childStoppedByKubexit = true
 			// trigger graceful shutdown
 			// Skipped if not started.
 			err := child.ShutdownWithTimeout(gracePeriod)
@@ -199,7 +201,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if suppressStoppedExitcode {
+	if childStoppedByKubexit && suppressStoppedExitcode {
 		log.Printf("Suppressing child exit code (%d): it was stopped by kubexit\n", code)
 		code = 0
 	}
