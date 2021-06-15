@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -24,8 +25,15 @@ import (
 func main() {
 	var err error
 
-	// remove log timestamp
-	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	// remove log timestamp (by default, unless configured to be kept)
+	logDateTime, err := parseBoolEnv("KUBEXIT_LOG_DATETIME", false)
+	if err != nil {
+		log.Printf("Error: Invalid KUBEXIT_LOG_DATETIME (%s)\n", err.Error())
+		os.Exit(2)
+	}
+	if !logDateTime {
+		log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+	}
 
 	args := os.Args[1:]
 	if len(args) == 0 {
@@ -119,7 +127,33 @@ func main() {
 
 	child := supervisor.New(args[0], args[1:]...)
 
+	stopSignal := os.Getenv("KUBEXIT_STOPSIGNAL")
+	switch stopSignal {
+	case "INT", "SIGINT":
+		log.Println("Using SIGINT as stop child signal")
+		child.WithStopSignal(syscall.SIGINT)
+	case "TERM", "SIGTERM":
+		log.Println("Using SIGTERM as stop child signal")
+		child.WithStopSignal(syscall.SIGTERM)
+	case "":
+		log.Println("Using default stop child signal")
+	default:
+		log.Println("Error: Invalid stop child signal")
+	}
+
+	// In many situations, it's important to have all containers in a k8s "job" with an
+	// exit code indicating success. But, if we stop the process, tools may reflect that
+	// in their exit code that they were terminated unexpectedly.
+	// Allow suppressing the exit code and return code 0 to the caller if kubexit is the
+	// reason for the process termination
+	suppressStoppedExitcode, err := parseBoolEnv("KUBEXIT_SUPPRESS_STOPPED_EXITCODE", false)
+	if err != nil {
+		log.Printf("Error: Invalid KUBEXIT_SUPPRESS_STOPPED_EXITCODE (%s)\n", err.Error())
+		os.Exit(2)
+	}
+
 	// watch for death deps early, so they can interrupt waiting for birth deps
+	childStoppedByKubexit := false
 	if len(deathDeps) > 0 {
 		ctx, stopGraveyardWatcher := context.WithCancel(context.Background())
 		// stop graveyard watchers on exit, if not sooner
@@ -128,6 +162,7 @@ func main() {
 		log.Println("Watching graveyard...")
 		err = tombstone.Watch(ctx, graveyard, onDeathOfAny(deathDeps, func() {
 			stopGraveyardWatcher()
+			childStoppedByKubexit = true
 			// trigger graceful shutdown
 			// Skipped if not started.
 			err := child.ShutdownWithTimeout(gracePeriod)
@@ -166,7 +201,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	if childStoppedByKubexit && suppressStoppedExitcode {
+		log.Printf("Suppressing child exit code (%d): it was stopped by kubexit\n", code)
+		code = 0
+	}
 	os.Exit(code)
+}
+
+func parseBoolEnv(key string, defaultValue bool) (bool, error) {
+	value := defaultValue
+	envValue := os.Getenv(key)
+	if envValue != "" {
+		var err error
+		value, err = strconv.ParseBool(envValue)
+		if err != nil {
+			return false, err
+		}
+	}
+	return value, nil
 }
 
 func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout time.Duration) error {

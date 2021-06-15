@@ -19,6 +19,7 @@ type Supervisor struct {
 	sigCh         chan os.Signal
 	startStopLock sync.Mutex
 	shutdownTimer *time.Timer
+	stopSignal    syscall.Signal
 }
 
 func New(name string, args ...string) *Supervisor {
@@ -31,8 +32,13 @@ func New(name string, args ...string) *Supervisor {
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
 	return &Supervisor{
-		cmd: cmd,
+		cmd:        cmd,
+		stopSignal: syscall.SIGTERM,
 	}
+}
+
+func (s *Supervisor) WithStopSignal(stopSignal syscall.Signal) {
+	s.stopSignal = stopSignal
 }
 
 func (s *Supervisor) Start() error {
@@ -119,7 +125,7 @@ func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
 	}
 
 	log.Println("Terminating child process...")
-	err := s.cmd.Process.Signal(syscall.SIGTERM)
+	err := s.cmd.Process.Signal(s.stopSignal)
 	if err != nil {
 		return fmt.Errorf("failed to terminate child process: %v", err)
 	}
