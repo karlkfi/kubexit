@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/karlkfi/kubexit/pkg/log"
 	"sigs.k8s.io/yaml"
 )
 
@@ -57,11 +57,13 @@ func (t *Tombstone) Write() error {
 	return nil
 }
 
-func (t *Tombstone) RecordBirth() error {
+func (t *Tombstone) RecordBirth(ctx context.Context) error {
 	born := time.Now()
 	t.Born = &born
 
-	log.Printf("Creating tombstone: %s\n", t.Path())
+	log.G(ctx).
+		WithField("tombstone", t.Path()).
+		Info("creating tombstone...")
 	err := t.Write()
 	if err != nil {
 		return fmt.Errorf("failed to create tombstone: %v", err)
@@ -69,13 +71,15 @@ func (t *Tombstone) RecordBirth() error {
 	return nil
 }
 
-func (t *Tombstone) RecordDeath(exitCode int) error {
+func (t *Tombstone) RecordDeath(ctx context.Context, exitCode int) error {
 	code := exitCode
 	died := time.Now()
 	t.Died = &died
 	t.ExitCode = &code
 
-	log.Printf("Updating tombstone: %s\n", t.Path())
+	log.G(ctx).
+		WithField("tombstone", t.Path()).
+		Info("updating tombstone...")
 	err := t.Write()
 	if err != nil {
 		return fmt.Errorf("failed to update tombstone: %v", err)
@@ -86,7 +90,7 @@ func (t *Tombstone) RecordDeath(exitCode int) error {
 func (t *Tombstone) String() string {
 	inline, err := json.Marshal(t)
 	if err != nil {
-		log.Printf("Error: failed to marshal tombstone as json: %v\n", err)
+		log.L.Errorf("failed to marshal tombstone as json: %v", err)
 		return "{}"
 	}
 	return string(inline)
@@ -112,25 +116,12 @@ func Read(graveyard, name string) (*Tombstone, error) {
 	return &t, nil
 }
 
-type EventHandler func(fsnotify.Event)
+type EventHandler func(context.Context, fsnotify.Event) error
 
 // LoggingEventHandler is an example EventHandler that logs fsnotify events
-func LoggingEventHandler(event fsnotify.Event) {
-	if event.Op&fsnotify.Create == fsnotify.Create {
-		log.Printf("Tombstone Watch: file created: %s\n", event.Name)
-	}
-	if event.Op&fsnotify.Remove == fsnotify.Remove {
-		log.Printf("Tombstone Watch: file removed: %s\n", event.Name)
-	}
-	if event.Op&fsnotify.Write == fsnotify.Write {
-		log.Printf("Tombstone Watch: file modified: %s\n", event.Name)
-	}
-	if event.Op&fsnotify.Rename == fsnotify.Rename {
-		log.Printf("Tombstone Watch: file renamed: %s\n", event.Name)
-	}
-	if event.Op&fsnotify.Chmod == fsnotify.Chmod {
-		log.Printf("Tombstone Watch: file chmoded: %s\n", event.Name)
-	}
+func LoggingEventHandler(ctx context.Context, event fsnotify.Event) error {
+	log.G(ctx).WithField("event_name", event.Name).Info("recieved tombstone watch event")
+	return nil
 }
 
 // Watch a graveyard and call the eventHandler (asyncronously) when an
@@ -146,18 +137,28 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("Tombstone Watch(%s): done\n", graveyard)
+				log.G(ctx).
+					WithField("graveyard", graveyard).
+					Info("tombstone watcher stopped")
 				return
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
 				}
-				eventHandler(event)
+				err := eventHandler(ctx, event)
+				if err != nil {
+					log.G(ctx).
+						WithField("event_name", event.Name).
+						WithField("graveyard", graveyard).
+						Warn(fmt.Errorf("error handling file system event: %v", err))
+				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				log.Printf("Tombstone Watch(%s): error: %v\n", graveyard, err)
+				log.G(ctx).
+					WithField("graveyard", graveyard).
+					Warn(fmt.Errorf("error handling file system event: %v", err))
 				// TODO: wrap ctx with WithCancel and cancel on terminal errors, if any
 			}
 		}
@@ -167,5 +168,22 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 	if err != nil {
 		return fmt.Errorf("failed to add watcher: %v", err)
 	}
+
+	files, err := ioutil.ReadDir(graveyard)
+	if err != nil {
+		return fmt.Errorf("failed to read graveyard dir: %v", err)
+	}
+
+	for _, f := range files {
+		event := fsnotify.Event{
+			Name: filepath.Join(graveyard, f.Name()),
+			Op:   fsnotify.Create,
+		}
+		err = eventHandler(ctx, event)
+		if err != nil {
+			return fmt.Errorf("failed handling existing tombstone: %v", err)
+		}
+	}
+
 	return nil
 }

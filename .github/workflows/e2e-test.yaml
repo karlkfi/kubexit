@@ -10,6 +10,15 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
+      - name: Install Go
+        # https://github.com/mvdan/github-actions-golang
+        uses: actions/setup-go@v2
+        with:
+          go-version: "1.15.x"
+      - name: Install goimports
+        run: |
+          GO111MODULE=off go get golang.org/x/tools/cmd/goimports
+          echo "::add-path::$(go env GOPATH)/bin"
       - name: Checkout
         uses: actions/checkout@v2
       - name: Lint Go Code
@@ -25,6 +34,7 @@ jobs:
         uses: docker/build-push-action@v1
         with:
           repository: karlkfi/kubexit
+          tag_with_sha: true
           # Docker Automated Builds handle publishing
           push: false
       - name: Setup kube tools
@@ -53,12 +63,26 @@ jobs:
           kubectl get pods -n kube-system
           echo "current-context:" "$(kubectl config current-context)"
           echo "environment-kubeconfig:" "${KUBECONFIG}"
-      - name: Apply job
-        run: ci/e2e-test/client-server/apply-job.sh
-      - name: Await job
-        run: ci/e2e-test/client-server/await-job.sh
-      - name: Delete job
-        run: ci/e2e-test/client-server/delete-job.sh
+      - name: Load kubexit Image
+        run: kind load docker-image "karlkfi/kubexit:sha-${GITHUB_SHA:0:7}" --name e2e-test
+      - name: Build & Load test-client Image
+        run: |
+          set -o errexit -o nounset -o pipefail
+          IMAGE_TAG="karlkfi/test-client:sha-${GITHUB_SHA:0:7}"
+          docker build --tag "${IMAGE_TAG}" ci/e2e-test/assets/test-client/
+          kind load docker-image "${IMAGE_TAG}" --name e2e-test
+      - name: Test client-server
+        run: |
+          set -o errexit -o nounset -o pipefail
+          ci/e2e-test/client-server/apply-job.sh
+          ci/e2e-test/client-server/await-job.sh
+          ci/e2e-test/client-server/delete-job.sh
+      - name: Test client-server-slow-start
+        run: |
+          set -o errexit -o nounset -o pipefail
+          ci/e2e-test/client-server-slow-start/apply-job.sh
+          ci/e2e-test/client-server-slow-start/await-job.sh
+          ci/e2e-test/client-server-slow-start/delete-job.sh
       - name: Delete kind cluster
         if: always()
         run: kind delete cluster --name e2e-test

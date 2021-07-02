@@ -31,7 +31,7 @@ echo "Pod Respurces:"
 kubectl get pods --selector=job-name=client-server-job -o json | jq '.items[].status'
 
 echo "Status: ${job_status}"
-if [[ "${job_status}" == *"Error" ]]; then
-    echo "Expected: Completed Completed"
+if [[ "${job_status}" != *"Error" ]]; then
+    echo "Expected: Error"
     exit 1
 fi

@@ -2,9 +2,9 @@ package supervisor
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/karlkfi/kubexit/pkg/log"
 )
 
 type Supervisor struct {
@@ -19,9 +21,13 @@ type Supervisor struct {
 	sigCh         chan os.Signal
 	startStopLock sync.Mutex
 	shutdownTimer *time.Timer
+
+	// TODO: Supervisor needs a rewrite to support Context cancellation and deadlines.
+	// For now, this context is only used to extract the logger.
+	ctx context.Context
 }
 
-func New(name string, args ...string) *Supervisor {
+func New(ctx context.Context, name string, args ...string) *Supervisor {
 	// Don't use CommandContext.
 	// We want the child process to exit on its own so we can return its exit code.
 	// If the child doesn't exit on TERM, then neither should the supervisor.
@@ -32,6 +38,7 @@ func New(name string, args ...string) *Supervisor {
 	cmd.Env = os.Environ()
 	return &Supervisor{
 		cmd: cmd,
+		ctx: ctx,
 	}
 }
 
@@ -39,7 +46,7 @@ func (s *Supervisor) Start() error {
 	s.startStopLock.Lock()
 	defer s.startStopLock.Unlock()
 
-	log.Printf("Starting: %s\n", s)
+	log.G(s.ctx).WithField("supervisor", s).Info("starting child process")
 	if err := s.cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start child process: %v", err)
 	}
@@ -56,7 +63,7 @@ func (s *Supervisor) Start() error {
 			}
 			// log everything but "urgent I/O condition", which gets noisy
 			if sig != syscall.SIGURG {
-				log.Printf("Received signal: %v\n", sig)
+				log.G(s.ctx).WithField("signal", sig).Info("received signal")
 			}
 			// ignore "child exited" signal
 			if sig == syscall.SIGCHLD {
@@ -64,7 +71,7 @@ func (s *Supervisor) Start() error {
 			}
 			err := s.cmd.Process.Signal(sig)
 			if err != nil {
-				log.Printf("Signal propegation failed: %v\n", err)
+				log.G(s.ctx).WithField("signal", sig).Errorf("signal propegation failed: %v", err)
 			}
 		}
 	}()
@@ -82,7 +89,7 @@ func (s *Supervisor) Wait() error {
 			s.shutdownTimer.Stop()
 		}
 	}()
-	log.Println("Waiting for child process to exit...")
+	log.G(s.ctx).Info("Waiting for child process to exit...")
 	return s.cmd.Wait()
 }
 
@@ -91,11 +98,10 @@ func (s *Supervisor) ShutdownNow() error {
 	defer s.startStopLock.Unlock()
 
 	if !s.isRunning() {
-		log.Println("Skipping ShutdownNow: child process not running")
-		return nil
+		return errors.New("child process not running")
 	}
 
-	log.Println("Killing child process...")
+	log.G(s.ctx).Println("Killing child process...")
 	// TODO: Use Process.Kill() instead?
 	// Sending Interrupt on Windows is not implemented.
 	err := s.cmd.Process.Signal(syscall.SIGKILL)
@@ -110,26 +116,27 @@ func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
 	defer s.startStopLock.Unlock()
 
 	if !s.isRunning() {
-		log.Println("Skipping ShutdownWithTimeout: child process not running")
-		return nil
+		return errors.New("child process not running")
 	}
 
 	if s.shutdownTimer != nil {
 		return errors.New("shutdown already started")
 	}
 
-	log.Println("Terminating child process...")
+	log.G(s.ctx).Info("Terminating child process...")
 	err := s.cmd.Process.Signal(syscall.SIGTERM)
 	if err != nil {
 		return fmt.Errorf("failed to terminate child process: %v", err)
 	}
 
 	s.shutdownTimer = time.AfterFunc(timeout, func() {
-		log.Printf("Timeout elapsed: %s\n", timeout)
+		log.G(s.ctx).WithField("timeout", timeout).Info("shutdown timeout elapsed")
 		err := s.ShutdownNow()
 		if err != nil {
 			// TODO: ignorable?
-			log.Printf("Failed after timeout: %v\n", err)
+			log.G(s.ctx).
+				WithField("timeout", timeout).
+				Error(fmt.Errorf("shutdown errored after timeout: %v", err))
 		}
 	})
 
