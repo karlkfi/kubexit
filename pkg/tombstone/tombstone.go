@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/karlkfi/kubexit/pkg/log"
 
 	"github.com/fsnotify/fsnotify"
 	"sigs.k8s.io/yaml"
@@ -61,7 +62,7 @@ func (t *Tombstone) RecordBirth() error {
 	born := time.Now()
 	t.Born = &born
 
-	log.Printf("Creating tombstone: %s\n", t.Path())
+	log.Info("Creating tombstone:", "path", t.Path())
 	err := t.Write()
 	if err != nil {
 		return fmt.Errorf("failed to create tombstone: %v", err)
@@ -75,7 +76,7 @@ func (t *Tombstone) RecordDeath(exitCode int) error {
 	t.Died = &died
 	t.ExitCode = &code
 
-	log.Printf("Updating tombstone: %s\n", t.Path())
+	log.Info("Updating tombstone:", "path", t.Path())
 	err := t.Write()
 	if err != nil {
 		return fmt.Errorf("failed to update tombstone: %v", err)
@@ -86,7 +87,7 @@ func (t *Tombstone) RecordDeath(exitCode int) error {
 func (t *Tombstone) String() string {
 	inline, err := json.Marshal(t)
 	if err != nil {
-		log.Printf("Error: failed to marshal tombstone as json: %v\n", err)
+		log.Error(err, "Error: failed to marshal tombstone as json")
 		return "{}"
 	}
 	return string(inline)
@@ -117,19 +118,19 @@ type EventHandler func(fsnotify.Event)
 // LoggingEventHandler is an example EventHandler that logs fsnotify events
 func LoggingEventHandler(event fsnotify.Event) {
 	if event.Op&fsnotify.Create == fsnotify.Create {
-		log.Printf("Tombstone Watch: file created: %s\n", event.Name)
+		log.Info("Tombstone Watch: file created:", "name", event.Name)
 	}
 	if event.Op&fsnotify.Remove == fsnotify.Remove {
-		log.Printf("Tombstone Watch: file removed: %s\n", event.Name)
+		log.Info("Tombstone Watch: file removed:", "name", event.Name)
 	}
 	if event.Op&fsnotify.Write == fsnotify.Write {
-		log.Printf("Tombstone Watch: file modified: %s\n", event.Name)
+		log.Info("Tombstone Watch: file modified:", "name", event.Name)
 	}
 	if event.Op&fsnotify.Rename == fsnotify.Rename {
-		log.Printf("Tombstone Watch: file renamed: %s\n", event.Name)
+		log.Info("Tombstone Watch: file renamed:", "name", event.Name)
 	}
 	if event.Op&fsnotify.Chmod == fsnotify.Chmod {
-		log.Printf("Tombstone Watch: file chmoded: %s\n", event.Name)
+		log.Info("Tombstone Watch: file chmoded:", "name", event.Name)
 	}
 }
 
@@ -146,7 +147,7 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("Tombstone Watch(%s): done\n", graveyard)
+				log.Info("Tombstone Watch: done", "graveyard", graveyard)
 				return
 			case event, ok := <-watcher.Events:
 				if !ok {
@@ -157,7 +158,7 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 				if !ok {
 					return
 				}
-				log.Printf("Tombstone Watch(%s): error: %v\n", graveyard, err)
+				log.Error(err, "Tombstone Watch: error", "graveyard", graveyard)
 				// TODO: wrap ctx with WithCancel and cancel on terminal errors, if any
 			}
 		}
