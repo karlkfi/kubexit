@@ -96,7 +96,7 @@ func main() {
 	podName := os.Getenv("KUBEXIT_POD_NAME")
 	if podName == "" {
 		if len(birthDeps) > 0 {
-			log.Error(errors.New("missing env var: KUBEXIT_POD_NAME"), "missing env var", "var_name", "KUBEXIT_POD_NAME)
+			log.Error(errors.New("missing env var: KUBEXIT_POD_NAME"), "missing env var", "var_name", "KUBEXIT_POD_NAME")
 			os.Exit(2)
 		}
 		log.Info("Pod Name: N/A")
@@ -318,13 +318,11 @@ func onDeathOfAny(deathDeps []string, callback func()) tombstone.EventHandler {
 		deathDepSet[depName] = struct{}{}
 	}
 
-	return func(event fsnotify.Event) {
-		if event.Op&fsnotify.Create != fsnotify.Create && event.Op&fsnotify.Write != fsnotify.Write {
-			// ignore other events
+	return func(graveyard string, name string, op fsnotify.Op) {
+		if op != 0 && op&fsnotify.Create != fsnotify.Create && op&fsnotify.Write != fsnotify.Write {
+			// ignore events other than initial, create and write
 			return
 		}
-		graveyard := filepath.Dir(event.Name)
-		name := filepath.Base(event.Name)
 
 		log.Info("Tombstone modified:", "name", name)
 		if _, ok := deathDepSet[name]; !ok {
