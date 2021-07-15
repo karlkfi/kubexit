@@ -1,5 +1,5 @@
-fetch http://dl-cdn.alpinelinux.org/alpine/v3.11/main/x86_64/APKINDEX.tar.gz
-fetch http://dl-cdn.alpinelinux.org/alpine/v3.11/community/x86_64/APKINDEX.tar.gz
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.14/main/x86_64/APKINDEX.tar.gz
+fetch http://dl-cdn.alpinelinux.org/alpine/v3.14/community/x86_64/APKINDEX.tar.gz
 (1/9) Installing ncurses-terminfo-base (6.1_p20200118-r3)
 (2/9) Installing ncurses-libs (6.1_p20200118-r3)
 (3/9) Installing readline (8.0.1-r0)
@@ -30,7 +30,8 @@ Exec: /usr/bin/curl -v --fail http://localhost:80/
   % Total    % ReceCreating tombstone: /graveyard/client
 ived % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 127.0.0.1:80...
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0*   Trying 127.0.0.1:80...
 * TCP_NODELAY set
 * Connected to localhost (127.0.0.1) port 80 (#0)
 > GET / HTTP/1.1
@@ -50,7 +51,8 @@ ived % Xferd  Average Speed   Time    Time     Time  Current
 < Accept-Ranges: bytes
 < 
 { [612 bytes data]
-100   612  100   612    0     0  14571      0 --:--:-- --:--:-- --:--:-- 15300
+
+100   612  100   612    0     0  14571      0 --:--:-- --:--:-- --:--:-- 15300
 <!DOCTYPE html>
 * Connection #0 to host localhost left intact
 <html>
