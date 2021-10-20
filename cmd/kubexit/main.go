@@ -278,7 +278,7 @@ func onReadyOfAll(birthDeps []string, callback func()) kubernetes.EventHandler {
 	}
 
 	return func(event watch.Event) {
-		fmt.Printf("Event Type: %v\n", event.Type)
+		log.Info("Event Type", "eventType", event.Type)
 		// ignore Deleted (Watch will auto-stop on delete)
 		if event.Type == watch.Deleted {
 			return
