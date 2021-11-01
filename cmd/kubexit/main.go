@@ -20,6 +20,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/util/retry"
 )
 
 func main() {
@@ -176,11 +177,21 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 	defer stopPodWatcher()
 
 	log.Info("Watching pod updates...")
-	err := kubernetes.WatchPod(ctx, namespace, podName,
-		onReadyOfAll(birthDeps, stopPodWatcher),
+	err := retry.OnError(
+		retry.DefaultBackoff,
+		isRetryableError,
+		func() error {
+			watchErr := kubernetes.WatchPod(ctx, namespace, podName,
+				onReadyOfAll(birthDeps, stopPodWatcher),
+			)
+			if watchErr != nil {
+				return fmt.Errorf("failed to watch pod: %v", watchErr)
+			}
+			return nil
+		},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to watch pod: %v", err)
+		return fmt.Errorf("retry watching pods failed: %v", err)
 	}
 
 	// Block until all birth deps are ready
@@ -195,6 +206,10 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 
 	log.Info("All birth deps ready:", "birth deps", strings.Join(birthDeps, ", "))
 	return nil
+}
+
+func isRetryableError(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded)
 }
 
 // withCancelOnSignal calls cancel when one of the specified signals is recieved.

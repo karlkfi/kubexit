@@ -32,7 +32,7 @@ func New(name string, args ...string) *Supervisor {
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
 	return &Supervisor{
-		cmd: cmd,
+		cmd:      cmd,
 		shutdown: false,
 	}
 }
