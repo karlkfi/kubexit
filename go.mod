@@ -7,9 +7,9 @@ require (
 	github.com/go-logr/logr v0.4.0
 	go.uber.org/atomic v1.8.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
-	go.uber.org/zap v1.19.1
-	k8s.io/api v0.21.5
-	k8s.io/apimachinery v0.21.5
+	go.uber.org/zap v1.20.0
+	k8s.io/api v0.21.8
+	k8s.io/apimachinery v0.21.8
 	k8s.io/client-go v0.21.5
 	sigs.k8s.io/controller-runtime v0.9.7
 	sigs.k8s.io/yaml v1.3.0
@@ -27,7 +27,7 @@ require (
 	github.com/json-iterator/go v1.1.11 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
-	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781 // indirect
+	golang.org/x/net v0.0.0-20211209124913-491a49abca63 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
 	golang.org/x/sys v0.0.0-20210817190340-bfb29a6856f2 // indirect
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
@@ -38,7 +38,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/klog/v2 v2.8.0 // indirect
+	k8s.io/klog/v2 v2.9.0 // indirect
 	k8s.io/utils v0.0.0-20210802155522-efc7438f0176 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 )
