@@ -7,7 +7,7 @@ require (
 	github.com/go-logr/logr v0.4.0
 	go.uber.org/atomic v1.8.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
-	go.uber.org/zap v1.20.0
+	go.uber.org/zap v1.21.0
 	k8s.io/api v0.21.8
 	k8s.io/apimachinery v0.21.8
 	k8s.io/client-go v0.21.5
