@@ -4,13 +4,13 @@ go 1.17
 
 require (
 	github.com/fsnotify/fsnotify v1.5.1
-	github.com/go-logr/logr v1.2.2
+	github.com/go-logr/logr v0.4.0
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.21.0
-	k8s.io/api v0.21.9
-	k8s.io/apimachinery v0.21.9
-	k8s.io/client-go v0.21.9
+	k8s.io/api v0.21.10
+	k8s.io/apimachinery v0.21.10
+	k8s.io/client-go v0.21.10
 	sigs.k8s.io/controller-runtime v0.9.7
 	sigs.k8s.io/yaml v1.3.0
 )
