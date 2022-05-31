@@ -170,10 +170,10 @@ func main() {
 	if exitCodeOverrideStr != "" {
 		exitCodeOverride, err := strconv.Atoi(exitCodeOverrideStr)
 		if err != nil {
-			log.Printf("Error: failed to parse exit code override: %v\n", err)
+			log.Info("Error: failed to parse exit code override: %v\n", err)
 			os.Exit(2)
 		}
-		log.Printf("Exit code override: %d\n", exitCodeOverride)
+		log.Info("Exit code override: %d\n", exitCodeOverride)
 		os.Exit(exitCodeOverride)
 	}
 
