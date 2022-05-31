@@ -53,6 +53,9 @@ The primary use case for this feature is Kubernetes Jobs, where a sidecar contai
 
 kubexit is configured with environment variables only, to make it easy to configure in Kubernetes and minimize entrypoint/command changes.
 
+General:
+- `KUBEXIT_LOG_LEVEL` - The log level for logged messages. Default: `info`.
+
 Tombstone:
 - `KUBEXIT_NAME` - The name of the tombstone file to use. Must match the name of the Kubernetes pod container, if using birth dependency.
 - `KUBEXIT_GRAVEYARD` - The file path of the graveyard directory, where tombstones will be read and written.

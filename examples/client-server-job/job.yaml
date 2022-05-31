@@ -27,7 +27,7 @@ spec:
 
       containers:
       - name: client
-        image: alpine:3.11
+        image: alpine:3.14
         command: ['sh', '-c']
         args:
         - |

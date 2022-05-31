@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -15,31 +15,30 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/karlkfi/kubexit/pkg/kubernetes"
+	"github.com/karlkfi/kubexit/pkg/log"
 	"github.com/karlkfi/kubexit/pkg/supervisor"
 	"github.com/karlkfi/kubexit/pkg/tombstone"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/util/retry"
 )
 
 func main() {
 	var err error
 
-	// remove log timestamp
-	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
-
 	args := os.Args[1:]
 	if len(args) == 0 {
-		log.Println("Error: no arguments found")
+		log.Error(errors.New("no arguments found"), "Error: no arguments found")
 		os.Exit(2)
 	}
 
 	name := os.Getenv("KUBEXIT_NAME")
 	if name == "" {
-		log.Println("Error: missing env var: KUBEXIT_NAME")
+		log.Error(errors.New("missing env var: KUBEXIT_NAME"), "Error: missing env var: KUBEXIT_NAME")
 		os.Exit(2)
 	}
-	log.Printf("Name: %s\n", name)
+	log.Info("Name:", "name", name)
 
 	graveyard := os.Getenv("KUBEXIT_GRAVEYARD")
 	if graveyard == "" {
@@ -48,30 +47,30 @@ func main() {
 		graveyard = strings.TrimRight(graveyard, "/")
 		graveyard = filepath.Clean(graveyard)
 	}
-	log.Printf("Graveyard: %s\n", graveyard)
+	log.Info("Graveyard:", "graveyard", graveyard)
 
 	ts := &tombstone.Tombstone{
 		Graveyard: graveyard,
 		Name:      name,
 	}
-	log.Printf("Tombstone: %s\n", ts.Path())
+	log.Info("Tombstone:", "tombstone", ts.Path())
 
 	birthDepsStr := os.Getenv("KUBEXIT_BIRTH_DEPS")
 	var birthDeps []string
 	if birthDepsStr == "" {
-		log.Println("Birth Deps: N/A")
+		log.Info("Birth Deps: N/A")
 	} else {
 		birthDeps = strings.Split(birthDepsStr, ",")
-		log.Printf("Birth Deps: %s\n", strings.Join(birthDeps, ","))
+		log.Info("Birth Deps:", "birth deps", strings.Join(birthDeps, ","))
 	}
 
 	deathDepsStr := os.Getenv("KUBEXIT_DEATH_DEPS")
 	var deathDeps []string
 	if deathDepsStr == "" {
-		log.Println("Death Deps: N/A")
+		log.Info("Death Deps: N/A")
 	} else {
 		deathDeps = strings.Split(deathDepsStr, ",")
-		log.Printf("Death Deps: %s\n", strings.Join(deathDeps, ","))
+		log.Info("Death Deps:", "death deps", strings.Join(deathDeps, ","))
 	}
 
 	birthTimeout := 30 * time.Second
@@ -79,43 +78,43 @@ func main() {
 	if birthTimeoutStr != "" {
 		birthTimeout, err = time.ParseDuration(birthTimeoutStr)
 		if err != nil {
-			log.Printf("Error: failed to parse birth timeout: %v\n", err)
+			log.Error(err, "Error: failed to parse birth timeout")
 			os.Exit(2)
 		}
 	}
-	log.Printf("Birth Timeout: %s\n", birthTimeout)
+	log.Info("Birth Timeout:", "birth timeout", birthTimeout)
 
 	gracePeriod := 30 * time.Second
 	gracePeriodStr := os.Getenv("KUBEXIT_GRACE_PERIOD")
 	if gracePeriodStr != "" {
 		gracePeriod, err = time.ParseDuration(gracePeriodStr)
 		if err != nil {
-			log.Printf("Error: failed to parse grace period: %v\n", err)
+			log.Error(err, "Error: failed to parse grace period")
 			os.Exit(2)
 		}
 	}
-	log.Printf("Grace Period: %s\n", gracePeriod)
+	log.Info("Grace Period:", "grace period", gracePeriod)
 
 	podName := os.Getenv("KUBEXIT_POD_NAME")
 	if podName == "" {
 		if len(birthDeps) > 0 {
-			log.Println("Error: missing env var: KUBEXIT_POD_NAME")
+			log.Error(errors.New("missing env var: KUBEXIT_POD_NAME"), "missing env var", "var_name", "KUBEXIT_POD_NAME")
 			os.Exit(2)
 		}
-		log.Println("Pod Name: N/A")
+		log.Info("Pod Name: N/A")
 	} else {
-		log.Printf("Pod Name: %s\n", podName)
+		log.Info("Pod Name:", "pod name", podName)
 	}
 
 	namespace := os.Getenv("KUBEXIT_NAMESPACE")
 	if namespace == "" {
 		if len(birthDeps) > 0 {
-			log.Println("Error: missing env var: KUBEXIT_NAMESPACE")
+			log.Error(errors.New("missing env var: KUBEXIT_NAMESPACE"), "Error: missing env var: KUBEXIT_NAMESPACE")
 			os.Exit(2)
 		}
-		log.Println("Namespace: N/A")
+		log.Info("Namespace: N/A")
 	} else {
-		log.Printf("Namespace: %s\n", namespace)
+		log.Info("Namespace:", "namespace", namespace)
 	}
 
 	child := supervisor.New(args[0], args[1:]...)
@@ -126,7 +125,7 @@ func main() {
 		// stop graveyard watchers on exit, if not sooner
 		defer stopGraveyardWatcher()
 
-		log.Println("Watching graveyard...")
+		log.Info("Watching graveyard...")
 		err = tombstone.Watch(ctx, graveyard, onDeathOfAny(deathDeps, func() {
 			stopGraveyardWatcher()
 			// trigger graceful shutdown
@@ -134,36 +133,36 @@ func main() {
 			err := child.ShutdownWithTimeout(gracePeriod)
 			// ShutdownWithTimeout doesn't block until timeout
 			if err != nil {
-				log.Printf("Error: failed to shutdown: %v\n", err)
+				log.Error(err, "Error: failed to shutdown")
 			}
 		}))
 		if err != nil {
-			fatalf(child, ts, "Error: failed to watch graveyard: %v\n", err)
+			fatalf(child, ts, err, "Error: failed to watch graveyard")
 		}
 	}
 
 	if len(birthDeps) > 0 {
 		err = waitForBirthDeps(birthDeps, namespace, podName, birthTimeout)
 		if err != nil {
-			fatalf(child, ts, "Error: %v\n", err)
+			fatalf(child, ts, err, "Error: failed waiting for birth deps")
 		}
 	}
 
 	err = child.Start()
 	if err != nil {
-		fatalf(child, ts, "Error: %v\n", err)
+		fatalf(child, ts, err, "Error: failed starting child")
 	}
 
 	err = ts.RecordBirth()
 	if err != nil {
-		fatalf(child, ts, "Error: %v\n", err)
+		fatalf(child, ts, err, "Error: failed recording birth")
 	}
 
 	code := waitForChildExit(child)
 
 	err = ts.RecordDeath(code)
 	if err != nil {
-		log.Printf("Error: %v\n", err)
+		log.Error(err, "Error: failed to record death")
 		os.Exit(1)
 	}
 
@@ -189,12 +188,22 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 	// Stop pod watcher on exit, if not sooner
 	defer stopPodWatcher()
 
-	log.Println("Watching pod updates...")
-	err := kubernetes.WatchPod(ctx, namespace, podName,
-		onReadyOfAll(birthDeps, stopPodWatcher),
+	log.Info("Watching pod updates...")
+	err := retry.OnError(
+		retry.DefaultBackoff,
+		isRetryableError,
+		func() error {
+			watchErr := kubernetes.WatchPod(ctx, namespace, podName,
+				onReadyOfAll(birthDeps, stopPodWatcher),
+			)
+			if watchErr != nil {
+				return fmt.Errorf("failed to watch pod: %v", watchErr)
+			}
+			return nil
+		},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to watch pod: %v", err)
+		return fmt.Errorf("retry watching pods failed: %v", err)
 	}
 
 	// Block until all birth deps are ready
@@ -207,8 +216,12 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 		return fmt.Errorf("waiting for birth deps to be ready: %v", err)
 	}
 
-	log.Printf("All birth deps ready: %v\n", strings.Join(birthDeps, ", "))
+	log.Info("All birth deps ready:", "birth deps", strings.Join(birthDeps, ", "))
 	return nil
+}
+
+func isRetryableError(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded)
 }
 
 // withCancelOnSignal calls cancel when one of the specified signals is recieved.
@@ -226,7 +239,7 @@ func withCancelOnSignal(ctx context.Context, signals ...os.Signal) context.Conte
 				if !ok {
 					return
 				}
-				log.Printf("Received shutdown signal: %v", s)
+				log.Info("Received shutdown signal:", "signal", s)
 				cancel()
 			case <-ctx.Done():
 				signal.Reset()
@@ -248,23 +261,23 @@ func waitForChildExit(child *supervisor.Supervisor) int {
 		} else {
 			code = -1
 		}
-		log.Printf("Child Exited(%d): %v\n", code, err)
+		log.Info("Child Exited:", "code", code, "err", err)
 	} else {
 		code = 0
-		log.Println("Child Exited(0)")
+		log.Info("Child Exited(0)")
 	}
 	return code
 }
 
 // fatalf is for terminal errors.
 // The child process may or may not be running.
-func fatalf(child *supervisor.Supervisor, ts *tombstone.Tombstone, msg string, args ...interface{}) {
-	log.Printf(msg, args...)
+func fatalf(child *supervisor.Supervisor, ts *tombstone.Tombstone, fatalErr error, msg string, args ...interface{}) {
+	log.Error(fatalErr, msg, args...)
 
 	// Skipped if not started.
 	err := child.ShutdownNow()
 	if err != nil {
-		log.Printf("Error: failed to shutdown child process: %v", err)
+		log.Error(err, "Error: failed to shutdown child process")
 		os.Exit(1)
 	}
 
@@ -276,7 +289,7 @@ func fatalf(child *supervisor.Supervisor, ts *tombstone.Tombstone, msg string, a
 	// Another process may be waiting for it.
 	err = ts.RecordDeath(code)
 	if err != nil {
-		log.Printf("Error: %v\n", err)
+		log.Error(err, "Error: failed to record death")
 		os.Exit(1)
 	}
 
@@ -292,7 +305,7 @@ func onReadyOfAll(birthDeps []string, callback func()) kubernetes.EventHandler {
 	}
 
 	return func(event watch.Event) {
-		fmt.Printf("Event Type: %v\n", event.Type)
+		log.Info("Event Type", "eventType", event.Type)
 		// ignore Deleted (Watch will auto-stop on delete)
 		if event.Type == watch.Deleted {
 			return
@@ -300,7 +313,7 @@ func onReadyOfAll(birthDeps []string, callback func()) kubernetes.EventHandler {
 
 		pod, ok := event.Object.(*corev1.Pod)
 		if !ok {
-			log.Printf("Error: unexpected non-pod object type: %+v\n", event.Object)
+			log.Error(fmt.Errorf("unexpected non-pod object type: %+v", event.Object), "Error: unexpected non-pod object type")
 			return
 		}
 
@@ -332,24 +345,22 @@ func onDeathOfAny(deathDeps []string, callback func()) tombstone.EventHandler {
 		deathDepSet[depName] = struct{}{}
 	}
 
-	return func(event fsnotify.Event) {
-		if event.Op&fsnotify.Create != fsnotify.Create && event.Op&fsnotify.Write != fsnotify.Write {
-			// ignore other events
+	return func(graveyard string, name string, op fsnotify.Op) {
+		if op != 0 && op&fsnotify.Create != fsnotify.Create && op&fsnotify.Write != fsnotify.Write {
+			// ignore events other than initial, create and write
 			return
 		}
-		graveyard := filepath.Dir(event.Name)
-		name := filepath.Base(event.Name)
 
-		log.Printf("Tombstone modified: %s\n", name)
+		log.Info("Tombstone modified:", "name", name)
 		if _, ok := deathDepSet[name]; !ok {
 			// ignore other tombstones
 			return
 		}
 
-		log.Printf("Reading tombstone: %s\n", name)
+		log.Info("Reading tombstone:", "name", name)
 		ts, err := tombstone.Read(graveyard, name)
 		if err != nil {
-			log.Printf("Error: failed to read tombstone: %v\n", err)
+			log.Error(err, "Error: failed to read tombstone")
 			return
 		}
 
@@ -357,8 +368,8 @@ func onDeathOfAny(deathDeps []string, callback func()) tombstone.EventHandler {
 			// still alive
 			return
 		}
-		log.Printf("New death: %s\n", name)
-		log.Printf("Tombstone(%s): %s\n", name, ts)
+		log.Info("New death:", "name", name)
+		log.Info("Tombstone:", "name", name, "tombstone", ts)
 
 		callback()
 	}
