@@ -136,13 +136,32 @@ func LoggingEventHandler(graveyard string, tombstone string, op fsnotify.Op) {
 
 // Watch a graveyard and call the eventHandler (asyncronously) when an
 // event happens. When the supplied context is canceled, watching will stop.
-func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) error {
+func Watch(ctx context.Context, gracePeriodWait time.Duration, graveyard string, eventHandler EventHandler) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("failed to create watcher: %v", err)
 	}
 
 	go func() {
+		time.Sleep(gracePeriodWait)
+			// fire initial events after we started watching, this way no events are ever missed
+		f, err := os.Open(graveyard)
+		if err != nil {
+			log.Error(err, "failed to watch graveyard")
+			return
+		}
+
+		files, err := f.Readdir(-1)
+		f.Close()
+		if err != nil {
+			log.Error(err, "failed to watch for initial tombstones")
+			return
+		}
+
+		for _, file := range files {
+			eventHandler(graveyard, file.Name(), 0)
+		}
+
 		defer watcher.Close()
 		for {
 			select {
@@ -171,20 +190,5 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 		return fmt.Errorf("failed to add watcher: %v", err)
 	}
 
-	// fire initial events after we started watching, this way no events are ever missed
-	f, err := os.Open(graveyard)
-	if err != nil {
-		return fmt.Errorf("failed to watch graveyard: %v", err)
-	}
-
-	files, err := f.Readdir(-1)
-	f.Close()
-	if err != nil {
-		return fmt.Errorf("failed to watch for initial tombstones: %v", err)
-	}
-
-	for _, file := range files {
-		eventHandler(graveyard, file.Name(), 0)
-	}
 	return nil
 }

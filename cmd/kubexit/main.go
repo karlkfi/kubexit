@@ -84,6 +84,21 @@ func main() {
 	}
 	log.Info("Birth Timeout:", "birth timeout", birthTimeout)
 
+	gracePeriodWait := 0 * time.Second
+	gracePeriodWaitStr := os.Getenv("KUBEXIT_GRACE_PERIOD_WAIT")
+	if gracePeriodWaitStr != "" {
+		gracePeriodWait, err = time.ParseDuration(gracePeriodWaitStr)
+		if err != nil {
+			log.Error(err, "Error: failed to parse grace period wait")
+			os.Exit(2)
+		}
+		if gracePeriodWait > 3600 * time.Second {
+			gracePeriodWait = 3600 * time.Second
+			log.Info("Grace Period Wait greater than 1h set limit:", "grace period wait", gracePeriodWait)
+		}
+	}
+	log.Info("Grace Period Wait:", "grace period wait", gracePeriodWait)
+
 	gracePeriod := 30 * time.Second
 	gracePeriodStr := os.Getenv("KUBEXIT_GRACE_PERIOD")
 	if gracePeriodStr != "" {
@@ -126,7 +141,7 @@ func main() {
 		defer stopGraveyardWatcher()
 
 		log.Info("Watching graveyard...")
-		err = tombstone.Watch(ctx, graveyard, onDeathOfAny(deathDeps, func() {
+		err = tombstone.Watch(ctx, gracePeriodWait, graveyard, onDeathOfAny(deathDeps, func() {
 			stopGraveyardWatcher()
 			// trigger graceful shutdown
 			// Skipped if not started.
