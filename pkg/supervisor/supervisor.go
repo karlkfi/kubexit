@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
+	"github.com/karlkfi/kubexit/pkg/log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -45,7 +45,7 @@ func (s *Supervisor) Start() error {
 		return errors.New("not starting child process: shutdown already started")
 	}
 
-	log.Printf("Starting: %s\n", s)
+	log.Info("Starting: ", "start", s)
 	if err := s.cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start child process: %v", err)
 	}
@@ -62,7 +62,7 @@ func (s *Supervisor) Start() error {
 			}
 			// log everything but "urgent I/O condition", which gets noisy
 			if sig != syscall.SIGURG {
-				log.Printf("Received signal: %v\n", sig)
+				log.Info("Received signal: ", "signal", sig)
 			}
 			// ignore "child exited" signal
 			if sig == syscall.SIGCHLD {
@@ -70,7 +70,7 @@ func (s *Supervisor) Start() error {
 			}
 			err := s.cmd.Process.Signal(sig)
 			if err != nil {
-				log.Printf("Signal propegation failed: %v\n", err)
+				log.Error("Signal propegation failed: ", "error", err)
 			}
 		}
 	}()
@@ -88,7 +88,7 @@ func (s *Supervisor) Wait() error {
 			s.shutdownTimer.Stop()
 		}
 	}()
-	log.Println("Waiting for child process to exit...")
+	log.Info("Waiting for child process to exit...")
 	return s.cmd.Wait()
 }
 
@@ -99,11 +99,11 @@ func (s *Supervisor) ShutdownNow() error {
 	s.shutdown = true
 
 	if !s.isRunning() {
-		log.Println("Skipping ShutdownNow: child process not running")
+		log.Info("Skipping ShutdownNow: child process not running")
 		return nil
 	}
 
-	log.Println("Killing child process...")
+	log.Info("Killing child process...")
 	// TODO: Use Process.Kill() instead?
 	// Sending Interrupt on Windows is not implemented.
 	err := s.cmd.Process.Signal(syscall.SIGKILL)
@@ -120,7 +120,7 @@ func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
 	s.shutdown = true
 
 	if !s.isRunning() {
-		log.Println("Skipping ShutdownWithTimeout: child process not running")
+		log.Info("Skipping ShutdownWithTimeout: child process not running")
 		return nil
 	}
 
@@ -128,18 +128,18 @@ func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
 		return errors.New("shutdown already started")
 	}
 
-	log.Println("Terminating child process...")
+	log.Info("Terminating child process...")
 	err := s.cmd.Process.Signal(syscall.SIGTERM)
 	if err != nil {
 		return fmt.Errorf("failed to terminate child process: %v", err)
 	}
 
 	s.shutdownTimer = time.AfterFunc(timeout, func() {
-		log.Printf("Timeout elapsed: %s\n", timeout)
+		log.Info("Timeout elapsed: ", "timeout", timeout)
 		err := s.ShutdownNow()
 		if err != nil {
 			// TODO: ignorable?
-			log.Printf("Failed after timeout: %v\n", err)
+			log.Error("Failed after timeout: ", "error", err)
 		}
 	})
 
