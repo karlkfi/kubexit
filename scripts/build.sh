@@ -23,6 +23,6 @@ for PLATFORM in ${PLATFORMS[@]} ; do
   for CMD_DIR in cmd/*/ ; do
     CMD="$(basename "${CMD_DIR}")"
     echo "Building: bin/${PLATFORM}/${CMD}"
-    go build -o "bin/${PLATFORM}/${CMD}" "./cmd/${CMD}"
+    go build -mod=vendor -o "bin/${PLATFORM}/${CMD}" "./cmd/${CMD}"
   done
 done

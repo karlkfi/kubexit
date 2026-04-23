@@ -25,6 +25,7 @@ fix: gofmt goimports
 # update and remove unused go modules
 gomodules:
 	go mod tidy
+	go mod vendor
 
 # check if any go modules need updating
 lint-gomodules:

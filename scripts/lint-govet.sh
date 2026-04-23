@@ -10,7 +10,7 @@ scripts/lib/require-cmd.sh go
 
 # Go ./... automatically ignores /vendor/ files
 # https://go-review.googlesource.com/c/go/+/38745/
-FILES="$(go vet ./...)"
+FILES="$(go vet -mod=vendor ./...)"
 if [[ -n ${FILES} ]]; then
   echo 'The following files have problems:'
   echo "${FILES}"

@@ -2,7 +2,7 @@ FROM golang:1.22-alpine AS builder
 RUN mkdir /build
 WORKDIR /build
 COPY . /build/
-RUN CGO_ENABLED=0 GOOS=linux go build -o kubexit ./cmd/kubexit
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o kubexit ./cmd/kubexit
 
 FROM alpine:3.11
 RUN apk --no-cache add ca-certificates tzdata
