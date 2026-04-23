@@ -18,6 +18,7 @@ type Supervisor struct {
 	cmd           *exec.Cmd
 	sigCh         chan os.Signal
 	startStopLock sync.Mutex
+	shutdown      bool
 	shutdownTimer *time.Timer
 }
 
@@ -32,12 +33,17 @@ func New(name string, args ...string) *Supervisor {
 	cmd.Env = os.Environ()
 	return &Supervisor{
 		cmd: cmd,
+		shutdown: false,
 	}
 }
 
 func (s *Supervisor) Start() error {
 	s.startStopLock.Lock()
 	defer s.startStopLock.Unlock()
+
+	if s.shutdown {
+		return errors.New("not starting child process: shutdown already started")
+	}
 
 	log.Printf("Starting: %s\n", s)
 	if err := s.cmd.Start(); err != nil {
@@ -90,6 +96,8 @@ func (s *Supervisor) ShutdownNow() error {
 	s.startStopLock.Lock()
 	defer s.startStopLock.Unlock()
 
+	s.shutdown = true
+
 	if !s.isRunning() {
 		log.Println("Skipping ShutdownNow: child process not running")
 		return nil
@@ -108,6 +116,8 @@ func (s *Supervisor) ShutdownNow() error {
 func (s *Supervisor) ShutdownWithTimeout(timeout time.Duration) error {
 	s.startStopLock.Lock()
 	defer s.startStopLock.Unlock()
+
+	s.shutdown = true
 
 	if !s.isRunning() {
 		log.Println("Skipping ShutdownWithTimeout: child process not running")
