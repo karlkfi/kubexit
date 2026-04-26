@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +16,7 @@ import (
 	watchtools "k8s.io/client-go/tools/watch"
 )
 
-type EventHandler func(watch.Event)
+type EventHandler func(watch.Event) (bool, error)
 
 // Watch a pod and call the eventHandler (asyncronously) when an
 // event happens. When the supplied context is canceled, watching will stop.
@@ -44,17 +45,34 @@ func WatchPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, p
 		// cancel the provided context when done, so that caller can block on it
 		defer cancel()
 
-		// watch until deleted
+		// Determine if a pod is in a terminal phase (not deleted from API yet).
+		isTerminal := func(pod *corev1.Pod) bool {
+			return pod != nil && (pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded)
+		}
+
+		// watch until deleted or terminal phase
 		_, err := watchtools.UntilWithSync(ctx, lw, &corev1.Pod{}, nil, func(event watch.Event) (bool, error) {
 			if event.Type == watch.Error {
 				log.Printf("Pod Watch(%s): recoverable error: %+v\n", podName, event.Object)
 				return false, nil
 			}
 
-			eventHandler(event)
+			done, err := eventHandler(event)
+			if err != nil {
+				return true, fmt.Errorf("event handler error: %w", err)
+			}
+			if done {
+				log.Printf("Pod Watch(%s): event handler is done watching\n", podName)
+				return true, nil
+			}
 
 			if event.Type == watch.Deleted {
 				log.Printf("Pod Watch(%s): pod deleted\n", podName)
+				return true, nil
+			}
+
+			if pod, ok := event.Object.(*corev1.Pod); ok && isTerminal(pod) {
+				log.Printf("Pod Watch(%s): terminal phase: %s\n", podName, pod.Status.Phase)
 				return true, nil
 			}
 			return false, nil

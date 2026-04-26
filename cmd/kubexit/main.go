@@ -290,17 +290,21 @@ func onReadyOfAll(birthDeps []string, callback func()) watch.EventHandler {
 		birthDepSet[depName] = struct{}{}
 	}
 
-	return func(event kwatch.Event) {
+	return func(event kwatch.Event) (bool, error) {
 		fmt.Printf("Event Type: %v\n", event.Type)
-		// ignore Deleted (Watch will auto-stop on delete)
-		if event.Type == kwatch.Deleted {
-			return
-		}
 
 		pod, ok := event.Object.(*corev1.Pod)
 		if !ok {
-			log.Printf("Error: unexpected non-pod object type: %+v\n", event.Object)
-			return
+			return true, fmt.Errorf("unexpected non-pod object type %T: %+v", event.Object, event.Object)
+		}
+		// ignore Deleted (Watch will auto-stop on delete)
+		if event.Type == kwatch.Deleted {
+			log.Printf("Pod %s/%s deleted\n", pod.Namespace, pod.Namespace)
+			return true, nil
+		}
+		if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
+			log.Printf("Pod %s/%s phase terminal: %s\n", pod.Namespace, pod.Namespace, pod.Status.Phase)
+			return true, nil
 		}
 
 		// Convert ContainerStatuses list to map of ready container names
@@ -315,11 +319,12 @@ func onReadyOfAll(birthDeps []string, callback func()) watch.EventHandler {
 		for _, name := range birthDeps {
 			if _, ok := readyContainers[name]; !ok {
 				// at least one birth dep is not ready
-				return
+				return false, nil
 			}
 		}
 
 		callback()
+		return false, nil
 	}
 }
 
