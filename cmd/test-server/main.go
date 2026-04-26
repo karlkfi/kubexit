@@ -15,10 +15,10 @@ import (
 func main() {
 	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
 
-	ctx := withGracefulShutdown(context.Background())
+	ctx, wrapped := withGracefulShutdown(context.Background(), 0)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/exit", exitHandler(ctx))
+	mux.HandleFunc("/exit", exitHandler(ctx, 0))
 	mux.HandleFunc("/health", healthHandler())
 
 	portStr := os.Getenv("PORT")
@@ -52,22 +52,29 @@ func main() {
 	}
 
 	log.Println("Exited cleanly")
-	os.Exit(0)
+	os.Exit(wrapped.exitCode)
 }
 
-func exitHandler(ctx context.Context) http.HandlerFunc {
+func exitHandler(ctx context.Context, exitCode int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		codeStr := r.URL.Query().Get("exit_code")
+		if codeStr != "" {
+			if parsed, err := strconv.Atoi(codeStr); err == nil {
+				exitCode = parsed
+			}
+		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("exiting\n"))
+		w.Write([]byte(fmt.Sprintf("exiting with code %d\n", exitCode)))
 		wrapped, ok := ctx.(*cancelContext)
 		if ok {
+			wrapped.exitCode = exitCode
 			wrapped.cancel()
 		}
-		log.Println("Exit requested")
+		log.Printf("Exit requested with code %d", exitCode)
 	}
 }
 
@@ -79,9 +86,9 @@ func healthHandler() http.HandlerFunc {
 }
 
 // withGracefulShutdown returns a context that cancels on SIGTERM/SIGINT.
-func withGracefulShutdown(ctx context.Context) context.Context {
+func withGracefulShutdown(ctx context.Context, exitCode int) (context.Context, *cancelContext) {
 	ctx, cancel := context.WithCancel(ctx)
-	wrapped := &cancelContext{Context: ctx, cancel: cancel}
+	wrapped := &cancelContext{Context: ctx, cancel: cancel, exitCode: exitCode}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
@@ -96,11 +103,12 @@ func withGracefulShutdown(ctx context.Context) context.Context {
 		}
 	}()
 
-	return wrapped
+	return wrapped, wrapped
 }
 
 // cancelContext wraps context with an exposed cancel for the exit handler.
 type cancelContext struct {
 	context.Context
-	cancel context.CancelFunc
+	cancel   context.CancelFunc
+	exitCode int
 }
