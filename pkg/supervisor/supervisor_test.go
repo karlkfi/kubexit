@@ -120,9 +120,9 @@ func TestSupervisorShutdownWithTimeout_NotRunning(t *testing.T) {
 
 func TestSupervisorString(t *testing.T) {
 	tests := []struct {
-		name      string
-		args      []string
-		wantArgs  string
+		name     string
+		args     []string
+		wantArgs string
 	}{
 		{"simple", []string{"arg1"}, "arg1"},
 		{"with spaces", []string{"has space"}, `"has space"`},

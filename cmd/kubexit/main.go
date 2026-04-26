@@ -13,12 +13,14 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/karlkfi/kubexit/pkg/kubernetes"
 	"github.com/karlkfi/kubexit/pkg/supervisor"
 	"github.com/karlkfi/kubexit/pkg/tombstone"
+	"github.com/karlkfi/kubexit/pkg/watch"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/watch"
+	kwatch "k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 func main() {
@@ -177,8 +179,17 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 	// Stop pod watcher on exit, if not sooner
 	defer stopPodWatcher()
 
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("failed to configure kubernetes client: %v", err)
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %v", err)
+	}
+
 	log.Println("Watching pod updates...")
-	err := kubernetes.WatchPod(ctx, namespace, podName,
+	err = watch.WatchPod(ctx, clientset, namespace, podName,
 		onReadyOfAll(birthDeps, stopPodWatcher),
 	)
 	if err != nil {
@@ -273,16 +284,16 @@ func fatalf(child *supervisor.Supervisor, ts *tombstone.Tombstone, msg string, a
 
 // onReadyOfAll returns an EventHandler that executes the callback when all of
 // the birthDeps containers are ready.
-func onReadyOfAll(birthDeps []string, callback func()) kubernetes.EventHandler {
+func onReadyOfAll(birthDeps []string, callback func()) watch.EventHandler {
 	birthDepSet := map[string]struct{}{}
 	for _, depName := range birthDeps {
 		birthDepSet[depName] = struct{}{}
 	}
 
-	return func(event watch.Event) {
+	return func(event kwatch.Event) {
 		fmt.Printf("Event Type: %v\n", event.Type)
 		// ignore Deleted (Watch will auto-stop on delete)
-		if event.Type == watch.Deleted {
+		if event.Type == kwatch.Deleted {
 			return
 		}
 

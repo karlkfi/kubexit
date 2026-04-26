@@ -3,11 +3,12 @@ package tombstone
 import (
 	"context"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 func makeTempGraveyard(t *testing.T) string {
