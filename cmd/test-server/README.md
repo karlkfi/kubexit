@@ -15,6 +15,8 @@ A minimal HTTP server used to test how kubexit handles process signals and grace
 
 ## Usage
 
+All commands run from the project root (the workspace includes `cmd/test-server` as a module via `go.work`):
+
 ```bash
 # Run directly
 go run ./cmd/test-server
@@ -29,13 +31,13 @@ go build -o test-server ./cmd/test-server
 Build the container from the project root:
 
 ```bash
-docker build -t kubexit-test-server ./cmd/test-server
+docker build -f cmd/test-server/Dockerfile -t kubexit/test-server:latest .
 ```
 
 Run with a custom port:
 
 ```bash
-docker run -p 8080:8080 -e PORT=8080 kubexit-test-server
+docker run -p 8080:8080 -e PORT=8080 kubexit/test-server:latest
 ```
 
 ## Signal Handling

@@ -10,6 +10,7 @@ Thank you for your interest in contributing! Below are guidelines to help you ge
 - [Pull Requests](#pull-requests)
 - [Testing](#testing)
 - [Building](#building)
+- [Docker Images](#docker-images)
 - [Reporting Bugs](#reporting-bugs)
 - [Asking Questions](#asking-questions)
 
@@ -121,6 +122,34 @@ This runs `golangci-lint` (requires [golangci-lint](https://golangci-lint.run/) 
 
 ```bash
 make bin
+```
+
+### Docker Images
+
+There are two Docker images in the project:
+
+| Image | Dockerfile | Purpose |
+|-------|------------|---------|
+| `kubexit` | `Dockerfile` | Main application binary |
+| `kubexit/test-server` | `cmd/test-server/Dockerfile` | Test HTTP server for integration tests |
+
+Both use a multi-stage build: a `golang:1.26-alpine` builder stage compiles the binary, and an `alpine:3.23` runtime stage ships the final artifact.
+
+Build locally with:
+
+```bash
+# Main image
+docker build -t kubexit:latest .
+
+# Test server image
+docker build -f cmd/test-server/Dockerfile -t kubexit/test-server:latest .
+```
+
+To load images into a Kind cluster for local testing:
+
+```bash
+kind load docker-image kubexit:latest --name kubexit
+kind load docker-image kubexit/test-server:latest --name kubexit
 ```
 
 ## Reporting Bugs
