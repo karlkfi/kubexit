@@ -1,0 +1,7 @@
+go 1.26.0
+
+use (
+	.
+	./cmd/kubexit
+	./cmd/test-server
+)

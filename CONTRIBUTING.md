@@ -9,6 +9,7 @@ Thank you for your interest in contributing! Below are guidelines to help you ge
 - [Coding Guidelines](#coding-guidelines)
 - [Pull Requests](#pull-requests)
 - [Testing](#testing)
+- [Building](#building)
 - [Reporting Bugs](#reporting-bugs)
 - [Asking Questions](#asking-questions)
 
@@ -24,10 +25,11 @@ Thank you for your interest in contributing! Below are guidelines to help you ge
    ```bash
    git remote add upstream https://github.com/karlkfi/kubexit.git
    ```
-4. **Install dependencies**:
+4. **Sync the workspace**:
    ```bash
-   go mod download
+   go work sync && go mod download
    ```
+   This project uses a Go workspace (`go.work`) with three modules: root (`pkg/`), `cmd/kubexit`, and `cmd/test-server`. The `go work sync` command keeps replace directives in sync across all modules.
 
 ## Development Workflow
 
@@ -42,6 +44,7 @@ Thank you for your interest in contributing! Below are guidelines to help you ge
    make lint
    make test
    ```
+   Both commands run across all modules in the workspace via `./...`.
 4. **Commit** with a clear, descriptive message (see [Commit Messages](#commit-messages)).
 5. **Push** and open a pull request against `upstream/master`.
 
@@ -83,13 +86,25 @@ Unit tests run via Go's built-in test framework and are executed on every push a
 
 ### End-to-End Tests
 
-E2E tests run against a [Kind](https://kind.sigs.k8s.io/) cluster in CI. To run them locally:
+E2E tests deploy kubexit in a real Kubernetes cluster to verify behavior against the live Kubernetes API. They run against a [Kind](https://kind.sigs.k8s.io/) cluster in CI.
+
+To run them locally (requires Docker, `kind`, and `kubectl` installed):
 
 ```bash
-# Prerequisites: kind, kubectl, docker installed
+# Start a Kind cluster
+kind create cluster --name kubexit
+
+# Build the kubexit image and load it into the cluster
+docker build -t kubexit:latest .
+kind load docker-image kubexit:latest --name kubexit
+
+# Run the tests
 bash ci/e2e-test/client-server/apply-job.sh
 bash ci/e2e-test/client-server/await-job.sh
 bash ci/e2e-test/client-server/delete-job.sh
+
+# Tear down the cluster
+kind delete cluster --name kubexit
 ```
 
 See [ci/e2e-test/README.md](ci/e2e-test/README.md) for details.
@@ -101,6 +116,12 @@ make lint
 ```
 
 This runs `golangci-lint` (requires [golangci-lint](https://golangci-lint.run/) installed locally; CI handles this automatically).
+
+### Building
+
+```bash
+make bin
+```
 
 ## Reporting Bugs
 
