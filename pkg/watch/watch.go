@@ -20,7 +20,7 @@ type EventHandler func(watch.Event) (bool, error)
 
 // Watch a pod and call the eventHandler (asyncronously) when an
 // event happens. When the supplied context is canceled, watching will stop.
-func WatchPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string, eventHandler EventHandler) error {
+func WatchPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string, precondition watchtools.PreconditionFunc, eventHandler EventHandler) error {
 	// Watch doesn't take name matches, only selectors. So select on name.
 	fieldSelector := fields.OneTermEqualSelector("metadata.name", podName).String()
 
@@ -51,7 +51,7 @@ func WatchPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, p
 		}
 
 		// watch until deleted or terminal phase
-		_, err := watchtools.UntilWithSync(ctx, lw, &corev1.Pod{}, nil, func(event watch.Event) (bool, error) {
+		_, err := watchtools.UntilWithSync(ctx, lw, &corev1.Pod{}, precondition, func(event watch.Event) (bool, error) {
 			if event.Type == watch.Error {
 				log.Printf("Pod Watch(%s): recoverable error: %+v\n", podName, event.Object)
 				return false, nil

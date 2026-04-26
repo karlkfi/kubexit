@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
+	golang.org/x/sync v0.20.0
 	k8s.io/api v0.36.0
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0

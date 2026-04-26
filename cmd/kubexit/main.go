@@ -189,7 +189,7 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 	}
 
 	log.Println("Watching pod updates...")
-	err = watch.WatchPod(ctx, clientset, namespace, podName,
+	err = watch.WatchPod(ctx, clientset, namespace, podName, nil,
 		onReadyOfAll(birthDeps, stopPodWatcher),
 	)
 	if err != nil {
