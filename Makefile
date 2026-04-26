@@ -1,6 +1,6 @@
 MAKE_DIR:=$(strip $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))"))
 
-.PHONY: help bin clean lint fix gomodules lint-gomodules gofmt lint-gofmt goimports lint-goimports lint-govet
+.PHONY: help bin clean lint test fix gomodules lint-gomodules gofmt lint-gofmt goimports lint-goimports lint-govet
 
 default: help
 
@@ -15,6 +15,10 @@ bin:
 # remove compiled binaries
 clean:
 	scripts/clean.sh
+
+# run tests
+test:
+	go test -v ./...
 
 # run all linters
 lint: lint-gomodules lint-gofmt lint-goimports lint-govet
