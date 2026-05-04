@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -103,7 +104,7 @@ func TestSIGTERM(t *testing.T) {
 	}
 }
 
-func TestExitCode(t *testing.T) {
+func TestExitCodeURLParam(t *testing.T) {
 	port := pickPort(t)
 	binary := mustBuild(t)
 
@@ -122,6 +123,48 @@ func TestExitCode(t *testing.T) {
 
 	// Hit /exit with a custom exit code.
 	resp, err := http.Post(baseURL+"/exit?exit_code=42", "text/plain", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	err = cmd.Wait()
+	if err == nil {
+		t.Fatal("expected non-zero exit")
+	}
+
+	// The exit code for a process that calls os.Exit(42) is 42 << 8 on Unix.
+	if exitErr, ok := err.(*exec.ExitError); !ok {
+		t.Fatalf("expected *exec.ExitError, got %T", err)
+	} else if ws, ok := exitErr.Sys().(syscall.WaitStatus); !ok {
+		t.Fatalf("expected syscall.WaitStatus, got %T", exitErr.Sys())
+	} else if ws.ExitStatus() != 42 {
+		t.Errorf("expected exit code 42, got %d", ws.ExitStatus())
+	}
+}
+
+func TestExitCodePostBody(t *testing.T) {
+	port := pickPort(t)
+	binary := mustBuild(t)
+
+	cmd := exec.Command(binary)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PORT=%s", strconv.Itoa(port)))
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	if err := waitForReady(baseURL, 3*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	// Hit /exit with a custom exit code.
+	resp, err := http.Post(baseURL+"/exit", "application/x-www-form-urlencoded", strings.NewReader("exit_code=42"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -61,7 +61,10 @@ func exitHandler(ctx context.Context, exitCode int) http.HandlerFunc {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		codeStr := r.URL.Query().Get("exit_code")
+		codeStr := r.FormValue("exit_code")
+		if codeStr == "" {
+			codeStr = r.URL.Query().Get("exit_code")
+		}
 		if codeStr != "" {
 			if parsed, err := strconv.Atoi(codeStr); err == nil {
 				exitCode = parsed
