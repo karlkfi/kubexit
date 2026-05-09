@@ -9,20 +9,24 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Lint Go Code
         run: make lint
   e2e-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Build image
         # https://help.github.com/en/actions/language-and-framework-guides/publishing-docker-images
         # https://github.com/docker/build-push-action
-        uses: docker/build-push-action@v1
+        uses: docker/build-push-action@v6
         with:
           repository: karlkfi/kubexit
           # Docker Automated Builds handle publishing
@@ -36,9 +40,9 @@ jobs:
           jq: 'latest'
       - name: Update path
         run: |
-          echo "::add-path::$(dirname "${{steps.setup.outputs.kubectl-path}}")"
-          echo "::add-path::$(dirname "${{steps.setup.outputs.kustomize-path}}")"
-          echo "::add-path::$(dirname "${{steps.setup.outputs.jq-path}}")"
+          echo "$(dirname "${{steps.setup.outputs.kubectl-path}}")" >> $GITHUB_PATH
+          echo "$(dirname "${{steps.setup.outputs.kustomize-path}}")" >> $GITHUB_PATH
+          echo "$(dirname "${{steps.setup.outputs.jq-path}}")" >> $GITHUB_PATH
       - name: Create kind cluster
         uses: engineerd/setup-kind@v0.4.0
         with:
