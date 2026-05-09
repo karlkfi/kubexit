@@ -41,7 +41,7 @@ jobs:
           push: false
       - name: Setup kube tools
         id: setup
-        uses: yokawasa/action-setup-kube-tools@v0.1.0
+        uses: yokawasa/action-setup-kube-tools@v0.13.5
         with:
           kubectl: 'latest'
           kustomize: 'latest'
