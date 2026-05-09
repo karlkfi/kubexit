@@ -52,9 +52,9 @@ jobs:
           echo "$(dirname "${{steps.setup.outputs.kustomize-path}}")" >> $GITHUB_PATH
           echo "$(dirname "${{steps.setup.outputs.jq-path}}")" >> $GITHUB_PATH
       - name: Create kind cluster
-        uses: engineerd/setup-kind@v0.6.0
+        uses: engineerd/setup-kind@v0.6.2
         with:
-          version: v0.31.0
+          version: v0.24.0
           name: e2e-test
       - name: Print Context
         run: |
