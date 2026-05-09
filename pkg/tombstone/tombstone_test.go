@@ -50,10 +50,10 @@ func TestWriteAndRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got.Born == nil || *got.Born != now {
+	if got.Born == nil || !now.Equal(*got.Born) {
 		t.Errorf("Born = %v, want %v", got.Born, now)
 	}
-	if got.Died == nil || *got.Died != now {
+	if got.Died == nil || !now.Equal(*got.Died) {
 		t.Errorf("Died = %v, want %v", got.Died, now)
 	}
 	if got.ExitCode == nil || *got.ExitCode != exitCode {
