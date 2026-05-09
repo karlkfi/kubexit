@@ -80,10 +80,20 @@ Thank you for your interest in contributing! Below are guidelines to help you ge
 ### Unit Tests
 
 ```bash
-make test
+make test-unit
 ```
 
 Unit tests run via Go's built-in test framework and are executed on every push and pull request through CI.
+
+### Integration Tests
+
+Integration tests deploy a test-server into a local kind cluster to verify watch behavior against the live Kubernetes API.
+
+```bash
+make test-integration
+```
+
+Integration tests verify the interaction with Kubernetes components using a `kind` cluster and are executed on every push and pull request through CI.
 
 ### End-to-End Tests
 
