@@ -163,5 +163,5 @@ Open an issue on GitHub with:
 
 ## Asking Questions
 
-- Open a [GitHub Discussion](https://github.com/karlkfi/kubexit/discussions) for general questions or feature ideas.
+- Open a [GitHub Issue](https://github.com/karlkfi/kubexit/issues) for general questions or feature ideas.
 - For proposed changes, sketch the approach in an issue before implementing to avoid wasted effort.
