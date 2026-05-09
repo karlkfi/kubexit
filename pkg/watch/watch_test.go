@@ -17,9 +17,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-const kindClusterName = "kubexit-test"
-const testImage = "kubexit/test-server:latest"
-
 // TestWatchPod_RunningToFailed validates that WatchPod exits when a watched pod
 // fails. It runs WatchPod in a background goroutine, triggers the test-­server
 // to exit, and verifies that the observed pod phases include Failed.

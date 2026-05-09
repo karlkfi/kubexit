@@ -6,10 +6,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +18,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+const testImage = "kubexit/test-server:latest"
 
 type WatchSuite struct {
 	suite.Suite
@@ -33,10 +35,22 @@ func (s *WatchSuite) SetupSuite() {
 		s.Require().NoError(err, "kind not found in PATH")
 	}
 
+	kindClusterName := os.Getenv("KIND_CLUSTER_NAME")
+	createCluster := false
+	if kindClusterName == "" {
+		createCluster = true
+		kindClusterName = "kubexit-test"
+	}
+
 	var err error
-	s.clientset, err = setupKind(s.T())
+	s.clientset, err = setupKind(s.T(), kindClusterName, createCluster)
 	if err != nil {
 		s.Require().NoError(err, "Failed to setup Kind cluster")
+	}
+
+	// Build and load the test image into the cluster
+	if err := buildAndLoadImage(s.T(), kindClusterName); err != nil {
+		s.Require().NoError(err, "Failed to build and load test image")
 	}
 }
 
@@ -80,29 +94,21 @@ func redirectLogs(t *testing.T) {
 
 // setupKind creates a Kind cluster and returns a clientset connected to it.
 // It registers a cleanup function to delete the cluster when the test finishes.
-func setupKind(t *testing.T) (*kubernetes.Clientset, error) {
-	t.Logf("Creating Kind cluster")
-	if _, err := runCmdOutput(t, t.Context(), "kind", "create", "cluster", "--name", kindClusterName, "--wait", "60s"); err != nil {
-		expectedErrStr := fmt.Sprintf("ERROR: failed to create cluster: node(s) already exist for a cluster with the name %q", kindClusterName)
-		if strings.Contains(err.Error(), expectedErrStr) {
-			t.Logf("Found existing kind cluster")
-		} else {
+func setupKind(t *testing.T, kindClusterName string, createCluster bool) (*kubernetes.Clientset, error) {
+	if createCluster {
+		t.Logf("Creating Kind cluster")
+		if _, err := runCmdOutput(t, t.Context(), "kind", "create", "cluster", "--name", kindClusterName, "--wait", "60s"); err != nil {
 			return nil, fmt.Errorf("failed to create Kind cluster: %w", err)
 		}
-	}
-	t.Cleanup(func() {
-		t.Logf("Deleting Kind cluster")
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-		_ = runCmd(t, ctx, "kind", "delete", "cluster", "--name", kindClusterName)
-	})
-
-	// Build and load the test image into the cluster
-	if err := buildAndLoadImage(t); err != nil {
-		return nil, fmt.Errorf("failed to build and load test image: %w", err)
+		t.Cleanup(func() {
+			t.Logf("Deleting Kind cluster")
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			_ = runCmd(t, ctx, "kind", "delete", "cluster", "--name", kindClusterName)
+		})
 	}
 
-	clientset, err := getKindClientset(t)
+	clientset, err := getKindClientset(t, kindClusterName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get kind clientset: %w", err)
 	}
@@ -133,7 +139,7 @@ func runCmdOutput(t *testing.T, ctx context.Context, cmd string, args ...string)
 }
 
 // buildAndLoadImage builds the test-server Docker image and loads it into the Kind cluster.
-func buildAndLoadImage(t *testing.T) error {
+func buildAndLoadImage(t *testing.T, kindClusterName string) error {
 	// Build the image from the test-server directory
 	t.Logf("Building test-server image")
 	// docker build -f cmd/test-server/Dockerfile -t kubexit/test-server:latest .
@@ -147,7 +153,7 @@ func buildAndLoadImage(t *testing.T) error {
 	return runCmd(t, t.Context(), "kind", "load", "docker-image", testImage, "--name", kindClusterName)
 }
 
-func getKindClientset(t *testing.T) (*kubernetes.Clientset, error) {
+func getKindClientset(t *testing.T, kindClusterName string) (*kubernetes.Clientset, error) {
 	kubeconfigData, err := runCmdOutput(t, t.Context(), "kind", "get", "kubeconfig", "--name", kindClusterName)
 	if err != nil {
 		return nil, fmt.Errorf("getting kind kubeconfig: %w", err)

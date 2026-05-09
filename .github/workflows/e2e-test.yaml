@@ -71,6 +71,6 @@ jobs:
         run: ci/e2e-test/client-server/await-job.sh
       - name: Delete job
         run: ci/e2e-test/client-server/delete-job.sh
-      - name: Delete kind cluster
-        if: always()
-        run: kind delete cluster --name e2e-test
+      # - name: Delete kind cluster
+      #   if: always()
+      #   run: kind delete cluster --name e2e-test
