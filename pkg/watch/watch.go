@@ -42,16 +42,14 @@ func WatchPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, p
 
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)
-		// cancel the provided context when done, so that caller can block on it
 		defer cancel()
 
 		// Determine if a pod is in a terminal phase (not deleted from API yet).
-		isTerminal := func(pod *corev1.Pod) bool {
-			return pod != nil && (pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded)
-		}
+		// isTerminal := func(pod *corev1.Pod) bool {
+		// 	return pod != nil && (pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded)
+		// }
 
-		// watch until deleted or terminal phase
-		_, err := watchtools.UntilWithSync(ctx, lw, &corev1.Pod{}, precondition, func(event watch.Event) (bool, error) {
+		onEvent := func(event watch.Event) (bool, error) {
 			if event.Type == watch.Error {
 				log.Printf("Pod Watch(%s): recoverable error: %+v\n", podName, event.Object)
 				return false, nil
@@ -71,19 +69,26 @@ func WatchPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, p
 				return true, nil
 			}
 
-			if pod, ok := event.Object.(*corev1.Pod); ok && isTerminal(pod) {
-				log.Printf("Pod Watch(%s): terminal phase: %s\n", podName, pod.Status.Phase)
-				return true, nil
-			}
+			// if pod, ok := event.Object.(*corev1.Pod); ok && isTerminal(pod) {
+			// 	log.Printf("Pod Watch(%s): terminal phase: %s\n", podName, pod.Status.Phase)
+			// 	return true, nil
+			// }
 			return false, nil
-		})
+		}
+
+		log.Printf("Pod Watch(%s): starting...\n", podName)
+
+		// watch until deleted or terminal phase
+		_, err := watchtools.UntilWithSync(ctx, lw, &corev1.Pod{}, precondition, onEvent)
+
 		// ErrWaitTimeout is returned when the context is canceled.
 		// Since cancellation is the only way we exit, just ignore it.
-		if err != nil && err != wait.ErrWaitTimeout {
+		if err != nil && !wait.Interrupted(err) {
 			// TODO: should we do something about this??
 			log.Printf("Pod Watch(%s): terminal error: %v\n", podName, err)
+		} else {
+			log.Printf("Pod Watch(%s): done\n", podName)
 		}
-		log.Printf("Pod Watch(%s): done\n", podName)
 	}()
 
 	return nil

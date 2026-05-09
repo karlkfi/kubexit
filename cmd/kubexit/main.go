@@ -21,6 +21,7 @@ import (
 	kwatch "k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
 
 func main() {
@@ -188,13 +189,27 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 		return fmt.Errorf("failed to create kubernetes client: %v", err)
 	}
 
+	// Use syncCtx.Done to block until sync is complete.
+	syncCtx, syncCancel := context.WithCancel(ctx)
+	defer syncCancel()
+
+	onSync := func(_ cache.Store) (bool, error) {
+		// precondition is executed after UntilWithSync is synced
+		syncCancel()
+		return false, nil // continue watching
+	}
+
 	log.Println("Watching pod updates...")
-	err = watch.WatchPod(ctx, clientset, namespace, podName, nil,
+	err = watch.WatchPod(ctx, clientset, namespace, podName, onSync,
 		onReadyOfAll(birthDeps, stopPodWatcher),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to watch pod: %v", err)
 	}
+
+	log.Println("Waiting for sync...")
+	<-syncCtx.Done()
+	log.Println("Sync complete")
 
 	// Block until all birth deps are ready
 	<-ctx.Done()
