@@ -9,40 +9,52 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
       - name: Lint Go Code
         run: make lint
   e2e-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Build image
         # https://help.github.com/en/actions/language-and-framework-guides/publishing-docker-images
         # https://github.com/docker/build-push-action
-        uses: docker/build-push-action@v1
+        uses: docker/build-push-action@v6
         with:
           repository: karlkfi/kubexit
           # Docker Automated Builds handle publishing
           push: false
       - name: Setup kube tools
         id: setup
-        uses: yokawasa/action-setup-kube-tools@v0.1.0
+        uses: yokawasa/action-setup-kube-tools@v0.13.5
         with:
-          kubectl: '1.18.2'
-          kustomize: '3.8.1'
+          kubectl: 'latest'
+          kustomize: 'latest'
           jq: 'latest'
       - name: Update path
         run: |
-          echo "::add-path::$(dirname "${{steps.setup.outputs.kubectl-path}}")"
-          echo "::add-path::$(dirname "${{steps.setup.outputs.kustomize-path}}")"
-          echo "::add-path::$(dirname "${{steps.setup.outputs.jq-path}}")"
+          echo "$(dirname "${{steps.setup.outputs.kubectl-path}}")" >> $GITHUB_PATH
+          echo "$(dirname "${{steps.setup.outputs.kustomize-path}}")" >> $GITHUB_PATH
+          echo "$(dirname "${{steps.setup.outputs.jq-path}}")" >> $GITHUB_PATH
       - name: Create kind cluster
-        uses: engineerd/setup-kind@v0.4.0
+        uses: engineerd/setup-kind@v0.6.2
         with:
-          version: v0.8.1
+          version: v0.24.0
           name: e2e-test
       - name: Print Context
         run: |
@@ -59,6 +71,6 @@ jobs:
         run: ci/e2e-test/client-server/await-job.sh
       - name: Delete job
         run: ci/e2e-test/client-server/delete-job.sh
-      - name: Delete kind cluster
-        if: always()
-        run: kind delete cluster --name e2e-test
+      # - name: Delete kind cluster
+      #   if: always()
+      #   run: kind delete cluster --name e2e-test

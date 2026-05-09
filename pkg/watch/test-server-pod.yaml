@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-server
+  namespace: default
+  labels:
+    app: kubexit-test-server
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test-server
+      image: kubexit/test-server:latest
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 80
+          name: http
+      env:
+        - name: PORT
+          value: "80"
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: http
+        initialDelaySeconds: 3
+        periodSeconds: 10
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: http
+        initialDelaySeconds: 1
+        periodSeconds: 5

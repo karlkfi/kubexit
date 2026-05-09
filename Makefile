@@ -1,6 +1,6 @@
 MAKE_DIR:=$(strip $(shell dirname "$(realpath $(lastword $(MAKEFILE_LIST)))"))
 
-.PHONY: help bin clean lint fix gomodules lint-gomodules gofmt lint-gofmt goimports lint-goimports lint-govet
+.PHONY: help bin clean lint test test-unit test-integration fix gomodules lint-gomodules gofmt lint-gofmt goimports lint-goimports lint-govet
 
 default: help
 
@@ -16,20 +16,35 @@ bin:
 clean:
 	scripts/clean.sh
 
+# run unit tests
+test-unit:
+	go test -v ./...
+
+# run integration tests
+test-integration:
+	go test -v -tags=integration ./pkg/watch/...
+
+# run all tests
+test: test-unit test-integration
+
 # run all linters
 lint: lint-gomodules lint-gofmt lint-goimports lint-govet
 
 # fix (some) lint violations
 fix: gofmt goimports
 
-# update and remove unused go modules
+# update and remove unused go modules (all workspace modules)
 gomodules:
-	go mod tidy
-	go mod vendor
+	for dir in $$(scripts/go-modules.sh); do \
+		(cd "$$dir" && go mod tidy); \
+	done
+	go work vendor
 
-# check if any go modules need updating
+# check if any go modules need updating (all workspace modules)
 lint-gomodules:
-	go mod verify
+	for dir in $$(scripts/go-modules.sh); do \
+		(cd "$$dir" && go mod verify); \
+	done
 
 # format go code
 gofmt:

@@ -1,4 +1,4 @@
-package kubernetes
+package watch
 
 import (
 	"context"
@@ -12,25 +12,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	watchtools "k8s.io/client-go/tools/watch"
 )
 
-type EventHandler func(watch.Event)
+type EventHandler func(watch.Event) (bool, error)
 
 // Watch a pod and call the eventHandler (asyncronously) when an
 // event happens. When the supplied context is canceled, watching will stop.
-func WatchPod(ctx context.Context, namespace, podName string, eventHandler EventHandler) error {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return fmt.Errorf("failed to configure kubernetes client: %v", err)
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %v", err)
-	}
-
+func WatchPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string, precondition watchtools.PreconditionFunc, eventHandler EventHandler) error {
 	// Watch doesn't take name matches, only selectors. So select on name.
 	fieldSelector := fields.OneTermEqualSelector("metadata.name", podName).String()
 
@@ -52,31 +42,53 @@ func WatchPod(ctx context.Context, namespace, podName string, eventHandler Event
 
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)
-		// cancel the provided context when done, so that caller can block on it
 		defer cancel()
 
-		// watch until deleted
-		_, err := watchtools.UntilWithSync(ctx, lw, &corev1.Pod{}, nil, func(event watch.Event) (bool, error) {
+		// Determine if a pod is in a terminal phase (not deleted from API yet).
+		// isTerminal := func(pod *corev1.Pod) bool {
+		// 	return pod != nil && (pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded)
+		// }
+
+		onEvent := func(event watch.Event) (bool, error) {
 			if event.Type == watch.Error {
 				log.Printf("Pod Watch(%s): recoverable error: %+v\n", podName, event.Object)
 				return false, nil
 			}
 
-			eventHandler(event)
+			done, err := eventHandler(event)
+			if err != nil {
+				return true, fmt.Errorf("event handler error: %w", err)
+			}
+			if done {
+				log.Printf("Pod Watch(%s): event handler is done watching\n", podName)
+				return true, nil
+			}
 
 			if event.Type == watch.Deleted {
 				log.Printf("Pod Watch(%s): pod deleted\n", podName)
 				return true, nil
 			}
+
+			// if pod, ok := event.Object.(*corev1.Pod); ok && isTerminal(pod) {
+			// 	log.Printf("Pod Watch(%s): terminal phase: %s\n", podName, pod.Status.Phase)
+			// 	return true, nil
+			// }
 			return false, nil
-		})
+		}
+
+		log.Printf("Pod Watch(%s): starting...\n", podName)
+
+		// watch until deleted or terminal phase
+		_, err := watchtools.UntilWithSync(ctx, lw, &corev1.Pod{}, precondition, onEvent)
+
 		// ErrWaitTimeout is returned when the context is canceled.
 		// Since cancellation is the only way we exit, just ignore it.
-		if err != nil && err != wait.ErrWaitTimeout {
+		if err != nil && !wait.Interrupted(err) {
 			// TODO: should we do something about this??
 			log.Printf("Pod Watch(%s): terminal error: %v\n", podName, err)
+		} else {
+			log.Printf("Pod Watch(%s): done\n", podName)
 		}
-		log.Printf("Pod Watch(%s): done\n", podName)
 	}()
 
 	return nil

@@ -1,0 +1,246 @@
+//go:build integration
+
+package watch
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"golang.org/x/sync/errgroup"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+)
+
+// TestWatchPod_RunningToFailed validates that WatchPod exits when a watched pod
+// fails. It runs WatchPod in a background goroutine, triggers the test-­server
+// to exit, and verifies that the observed pod phases include Failed.
+func (s *WatchSuite) TestWatchPod_RunningToFailed() {
+	t := s.T()
+	clientset := s.clientset
+
+	namespace := "default"
+
+	// Create the test server pod
+	podName, err := createTestServerPod(t, s.clientset, namespace)
+	if err != nil {
+		t.Fatalf("failed to create test server pod: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// Wait for the pod to be ready
+	ctxReady, cancelReady := context.WithTimeout(ctx, 60*time.Second)
+	defer cancelReady()
+	waitForPodReady(ctxReady, t, clientset, namespace, podName)
+
+	// Determine if a pod is in a terminal phase (not deleted from API yet).
+	isTerminal := func(pod *corev1.Pod) bool {
+		return pod != nil && (pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded)
+	}
+
+	phasesCh := make(chan corev1.PodPhase, 10)
+	handler := func(event watch.Event) (bool, error) {
+		pod, ok := event.Object.(*corev1.Pod)
+		if !ok {
+			return true, fmt.Errorf("unexpected non-pod object type %T: %+v", event.Object, event.Object)
+		}
+		t.Logf("Watch event: type=%s phase=%s reason=%s", event.Type, pod.Status.Phase, pod.Status.Reason)
+		select {
+		case <-ctx.Done():
+			t.Logf("Context cancelled before phase read from phasesCh: %s\n", pod.Status.Phase)
+			return true, nil
+		case phasesCh <- pod.Status.Phase:
+			if isTerminal(pod) {
+				t.Logf("Terminal phase reached: %s\n", pod.Status.Phase)
+				return true, nil
+			}
+		}
+		return false, nil // continue watching
+	}
+
+	ctxWatchPod, cancelWatchPod := context.WithTimeout(ctx, 60*time.Second)
+	defer cancelWatchPod()
+
+	syncCtx, syncCancel := context.WithCancel(ctxWatchPod)
+	defer syncCancel()
+
+	onSync := func(s cache.Store) (bool, error) {
+		// precondition is executed after the ListWatch is synced
+		defer syncCancel()
+		obj, exists, err := s.GetByKey(cache.ObjectName{Namespace: namespace, Name: podName}.String())
+		if err != nil {
+			return true, fmt.Errorf("Failed to lookup Pod at sync time: %w", err)
+		}
+		if exists {
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				return true, fmt.Errorf("unexpected non-pod object type %T: %+v", obj, obj)
+			}
+			t.Logf("Synced Pod Phase: %+v", pod.Status.Phase)
+		} else {
+			return true, fmt.Errorf("Pod not found at sync time: %w", err)
+		}
+		return false, nil // continue watching
+	}
+
+	t.Log("WatchPod starting")
+	err = WatchPod(ctxWatchPod, clientset, namespace, podName, onSync, handler)
+	if err != nil {
+		t.Fatalf("WatchPod failed: %v", err)
+	}
+	t.Log("WatchPod returned without error")
+
+	t.Log("Waiting for sync or timeout...")
+	select {
+	case <-syncCtx.Done():
+		t.Log("Sync complete")
+	case <-ctxWatchPod.Done():
+		t.Fatal("timed out waiting for ctxWatchPod to complete")
+	}
+
+	g, ctxGroup := errgroup.WithContext(ctxWatchPod)
+
+	g.Go(func() error {
+		exitAddress := "http://localhost:80/exit"
+		exitCode := 1
+		t.Logf("POST %s?exit_code=%d", exitAddress, exitCode)
+		// kubectl exec -i -n default test-server -- curl -X POST -d exit_code=1 --silent --show-error --fail-with-body http://localhost:80/exit
+		if err := runCmd(t, ctxGroup,
+			"kubectl", "exec", "-i", "-n", namespace, podName, "--",
+			"curl", "-X", "POST", "-d", fmt.Sprintf("exit_code=%d", exitCode), "--silent", "--show-error", "--fail-with-body", exitAddress,
+		); err != nil {
+			return fmt.Errorf("failed to POST %s: %w", exitAddress, err)
+		}
+		return nil
+	})
+
+	var phases []corev1.PodPhase
+	g.Go(func() error {
+		ctxWait, cancelWait := context.WithTimeout(ctx, 30*time.Second)
+		defer cancelWait()
+		for {
+			select {
+			case <-ctxWait.Done():
+				return fmt.Errorf("waiting for pod terminal condition: %w", ctxWait.Err())
+			case phase, ok := <-phasesCh:
+				if !ok {
+					return fmt.Errorf("phasesCh closed early")
+				}
+				phases = append(phases, phase)
+				t.Logf("Read Pod phase: %v\n", phase)
+				if phase == corev1.PodFailed || phase == corev1.PodSucceeded {
+					return nil
+				}
+			}
+		}
+	})
+
+	if err := g.Wait(); err != nil {
+		t.Errorf("failed to wait for error group: %v", err)
+		pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			t.Fatalf("error getting pod: %v", err)
+		}
+		t.Fatalf("Pod Phase: %s", pod.Status.Phase)
+	}
+
+	// Stop WatchPod
+	cancelWatchPod()
+	// TODO: Wait until WatchPod is actually done. Need doneCh from WatchPod.
+	close(phasesCh)
+
+	t.Logf("Phases: %+v", phases)
+}
+
+// createTestServerPod creates a pod running the test server image and returns its name.
+// It registers a cleanup function to delete the pod when the test finishes.
+func createTestServerPod(t *testing.T, clientset *kubernetes.Clientset, namespace string) (string, error) {
+	podName := fmt.Sprintf("test-server-%d", time.Now().UnixNano())
+	_, err := clientset.CoreV1().Pods(namespace).Create(t.Context(), &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app": "kubexit-test-server",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:            "test-server",
+					Image:           testImage,
+					ImagePullPolicy: corev1.PullIfNotPresent,
+					Ports: []corev1.ContainerPort{
+						{ContainerPort: 80, Name: "http"},
+					},
+					Env: []corev1.EnvVar{
+						{Name: "PORT", Value: "80"},
+					},
+					LivenessProbe: &corev1.Probe{
+						ProbeHandler: corev1.ProbeHandler{
+							HTTPGet: &corev1.HTTPGetAction{
+								Path: "/health",
+								Port: intstr.FromString("http"),
+							},
+						},
+						InitialDelaySeconds: 3,
+						PeriodSeconds:       10,
+					},
+					ReadinessProbe: &corev1.Probe{
+						ProbeHandler: corev1.ProbeHandler{
+							HTTPGet: &corev1.HTTPGetAction{
+								Path: "/health",
+								Port: intstr.FromString("http"),
+							},
+						},
+						InitialDelaySeconds: 1,
+						PeriodSeconds:       5,
+					},
+				},
+			},
+			RestartPolicy: corev1.RestartPolicyNever,
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to create test server pod: %w", err)
+	}
+	t.Cleanup(func() {
+		t.Logf("Deleting test server pod %s", podName)
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		_ = clientset.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
+	})
+	return podName, nil
+}
+
+// waitForPodReady polls the given pod until it reports Ready or the context expires.
+func waitForPodReady(ctx context.Context, t *testing.T, clientset *kubernetes.Clientset, namespace, podName string) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for pod %s/%s to be ready", namespace, podName)
+		case <-ticker.C:
+			pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+			if err != nil {
+				t.Logf("error getting pod: %v", err)
+				continue
+			}
+			for _, cs := range pod.Status.ContainerStatuses {
+				if cs.Ready {
+					t.Logf("Pod %s/%s is ready", pod.Namespace, pod.Name)
+					return
+				}
+			}
+			t.Logf("Pod %s/%s phase=%s ready=%v", pod.Namespace, pod.Name, pod.Status.Phase, pod.Status.ContainerStatuses)
+		}
+	}
+}

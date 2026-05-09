@@ -13,12 +13,15 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/karlkfi/kubexit/pkg/kubernetes"
 	"github.com/karlkfi/kubexit/pkg/supervisor"
 	"github.com/karlkfi/kubexit/pkg/tombstone"
+	"github.com/karlkfi/kubexit/pkg/watch"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/watch"
+	kwatch "k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
 
 func main() {
@@ -177,13 +180,36 @@ func waitForBirthDeps(birthDeps []string, namespace, podName string, timeout tim
 	// Stop pod watcher on exit, if not sooner
 	defer stopPodWatcher()
 
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("failed to configure kubernetes client: %v", err)
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %v", err)
+	}
+
+	// Use syncCtx.Done to block until sync is complete.
+	syncCtx, syncCancel := context.WithCancel(ctx)
+	defer syncCancel()
+
+	onSync := func(_ cache.Store) (bool, error) {
+		// precondition is executed after UntilWithSync is synced
+		syncCancel()
+		return false, nil // continue watching
+	}
+
 	log.Println("Watching pod updates...")
-	err := kubernetes.WatchPod(ctx, namespace, podName,
+	err = watch.WatchPod(ctx, clientset, namespace, podName, onSync,
 		onReadyOfAll(birthDeps, stopPodWatcher),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to watch pod: %v", err)
 	}
+
+	log.Println("Waiting for sync...")
+	<-syncCtx.Done()
+	log.Println("Sync complete")
 
 	// Block until all birth deps are ready
 	<-ctx.Done()
@@ -273,23 +299,27 @@ func fatalf(child *supervisor.Supervisor, ts *tombstone.Tombstone, msg string, a
 
 // onReadyOfAll returns an EventHandler that executes the callback when all of
 // the birthDeps containers are ready.
-func onReadyOfAll(birthDeps []string, callback func()) kubernetes.EventHandler {
+func onReadyOfAll(birthDeps []string, callback func()) watch.EventHandler {
 	birthDepSet := map[string]struct{}{}
 	for _, depName := range birthDeps {
 		birthDepSet[depName] = struct{}{}
 	}
 
-	return func(event watch.Event) {
+	return func(event kwatch.Event) (bool, error) {
 		fmt.Printf("Event Type: %v\n", event.Type)
-		// ignore Deleted (Watch will auto-stop on delete)
-		if event.Type == watch.Deleted {
-			return
-		}
 
 		pod, ok := event.Object.(*corev1.Pod)
 		if !ok {
-			log.Printf("Error: unexpected non-pod object type: %+v\n", event.Object)
-			return
+			return true, fmt.Errorf("unexpected non-pod object type %T: %+v", event.Object, event.Object)
+		}
+		// ignore Deleted (Watch will auto-stop on delete)
+		if event.Type == kwatch.Deleted {
+			log.Printf("Pod %s/%s deleted\n", pod.Namespace, pod.Namespace)
+			return true, nil
+		}
+		if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
+			log.Printf("Pod %s/%s phase terminal: %s\n", pod.Namespace, pod.Namespace, pod.Status.Phase)
+			return true, nil
 		}
 
 		// Convert ContainerStatuses list to map of ready container names
@@ -304,11 +334,12 @@ func onReadyOfAll(birthDeps []string, callback func()) kubernetes.EventHandler {
 		for _, name := range birthDeps {
 			if _, ok := readyContainers[name]; !ok {
 				// at least one birth dep is not ready
-				return
+				return false, nil
 			}
 		}
 
 		callback()
+		return false, nil
 	}
 }
 
