@@ -35,3 +35,5 @@ jobs:
 
       - name: Run Integration Tests
         run: make test-integration
+        env:
+          GOTMPDIR: ${{ runner.temp }}
