@@ -167,5 +167,19 @@ func Watch(ctx context.Context, graveyard string, eventHandler EventHandler) err
 	if err != nil {
 		return fmt.Errorf("failed to add watcher: %v", err)
 	}
+
+	files, err := ioutil.ReadDir(graveyard)
+	if err != nil {
+		return fmt.Errorf("failed to read graveyard dir: %v", err)
+	}
+
+	for _, f := range files {
+		event := fsnotify.Event{
+			Name:	filepath.Join(graveyard, f.Name()),
+			Op:		fsnotify.Create,
+		}
+		eventHandler(event)
+	}
+
 	return nil
 }
