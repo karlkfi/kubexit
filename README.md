@@ -67,6 +67,16 @@ Birth Dependency:
 - `KUBEXIT_POD_NAME` - The name of the Kubernetes pod that this process and all its siblings are in.
 - `KUBEXIT_NAMESPACE` - The name of the Kubernetes namespace that this pod is in.
 
+Signal Handling:
+- `KUBEXIT_STOPSIGNAL` - Optional signal to use to stop the child processes. One of `SIGINT` (or just `INT`) or
+  `SIGTERM` (or just `TERM`).
+- `KUBEXIT_SUPPRESS_STOPPED_EXITCODE` - If `true`, suppress any exit code from the child process that is returned
+  in response to `kubexit` stopping it (either via the stop-signal or by killing it). Ensures that `kubexit` returns
+  exit code 0 whenever a stop is triggered due to one of th dependencies.
+
+Misc:
+- `KUBEXIT_LOG_DATETIME` - Include timestamp in logs
+
 ## Install
 
 While kubexit can easily be installed on your local machine, the primary use cases require execution within Kubernetes pod containers. So the recommended method of installation is to either side-load kubexit using a shared volume and an init container, or build kubexit into your own container images.
